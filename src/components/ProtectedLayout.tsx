@@ -12,11 +12,13 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     if (loading) return;
 
     if (!session) {
+      setRedirecting(true);
       router.replace('/login');
       return;
     }
@@ -31,7 +33,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  if (loading) {
+  if (loading || redirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
         <div className="flex flex-col items-center gap-3 animate-fade-in">
@@ -42,7 +44,17 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     );
   }
 
-  if (!session || !role) return null;
+  if (!session || !role) {
+    // Instead of returning null (blank screen), show loading while redirect happens
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
+        <div className="flex flex-col items-center gap-3 animate-fade-in">
+          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Mengalihkan ke login...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg-primary)' }}>
