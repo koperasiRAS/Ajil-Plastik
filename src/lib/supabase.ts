@@ -1,29 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-let _supabase: SupabaseClient | null = null;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-function getSupabase(): SupabaseClient {
-  if (!_supabase) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    if (!url || !key) {
-      console.error('Supabase env vars missing — check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY');
-    }
-    _supabase = createClient(url, key);
-  }
-  return _supabase;
+if (!url || !key) {
+  console.error('Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY');
 }
 
-// Lazy-init proxy so createClient doesn't run at module evaluation time (fixes build)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const supabase: SupabaseClient = new Proxy({} as any, {
-  get(_target, prop: string | symbol) {
-    const client = getSupabase();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const value = (client as any)[prop];
-    if (typeof value === 'function') {
-      return value.bind(client);
-    }
-    return value;
-  },
-});
+export const supabase: SupabaseClient = createClient(url, key);
