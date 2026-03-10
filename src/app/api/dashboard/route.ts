@@ -1,14 +1,36 @@
 import { NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
 
+// Helper: get WIB (UTC+7) date boundaries
+function getWIBToday() {
+  const now = new Date();
+  // Current time in WIB
+  const wibOffset = 7 * 60; // UTC+7 in minutes
+  const wibNow = new Date(now.getTime() + wibOffset * 60 * 1000);
+  
+  // Today start in WIB = midnight WIB = 17:00 UTC previous day
+  const wibMidnight = new Date(Date.UTC(
+    wibNow.getUTCFullYear(),
+    wibNow.getUTCMonth(),
+    wibNow.getUTCDate(),
+    0, 0, 0, 0
+  ));
+  // Convert back to UTC: midnight WIB = midnight - 7 hours in UTC
+  const todayStartUTC = new Date(wibMidnight.getTime() - wibOffset * 60 * 1000);
+  
+  // Today's date string in WIB format (YYYY-MM-DD)
+  const todayDateWIB = `${wibNow.getUTCFullYear()}-${String(wibNow.getUTCMonth() + 1).padStart(2, '0')}-${String(wibNow.getUTCDate()).padStart(2, '0')}`;
+  
+  return { todayStartUTC, todayDateWIB };
+}
+
 export async function GET() {
   const supabase = await createServerSupabase();
 
   try {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayISO = today.toISOString();
-    const todayDate = today.toISOString().split('T')[0];
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { todayStartUTC, todayDateWIB } = getWIBToday();
+    const todayISO = todayStartUTC.toISOString();
+    const sevenDaysAgo = new Date(todayStartUTC.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     // ALL queries in parallel for maximum performance!
     const [
@@ -20,13 +42,11 @@ export async function GET() {
       cogsRes,
       topProductsRes
     ] = await Promise.all([
-      // Core queries (parallel)
       supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO),
       supabase.from('products').select('id', { count: 'exact', head: true }),
       supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
       supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(5),
-      // Additional queries (parallel)
-      supabase.from('expenses').select('amount').gte('date', todayDate),
+      supabase.from('expenses').select('amount').gte('date', todayDateWIB),
       supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO),
       supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo),
     ]);
