@@ -42,7 +42,10 @@ export default function ExpensesPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchExpenses(); }, [filterMonth]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    fetchExpenses();
+  }, [filterMonth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

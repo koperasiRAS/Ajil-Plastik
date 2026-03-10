@@ -21,6 +21,9 @@
   --text-muted: #6b7280;
   --text-inverse: #030712;
 
+  --accent-teal: #14b8a6;
+  --accent-teal-hover: #0d9488;
+  --accent-teal-light: #5eead4;
   --accent-blue: #3b82f6;
   --accent-blue-hover: #2563eb;
   --accent-green: #22c55e;
@@ -33,7 +36,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+  --shadow-glow: 0 0 20px rgba(20, 184, 166, 0.15);
 }
 
 [data-theme="light"] {
@@ -54,6 +57,9 @@
 
   --accent-blue: #2563eb;
   --accent-blue-hover: #1d4ed8;
+  --accent-teal: #0d9488;
+  --accent-teal-hover: #115e59;
+  --accent-teal-light: #99f6e4;
   --accent-green: #16a34a;
   --accent-green-hover: #15803d;
   --accent-red: #dc2626;
@@ -131,8 +137,8 @@ input, textarea, select, button {
 }
 
 @keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); }
-  50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(20, 184, 166, 0); }
 }
 
 .animate-fade-in {
@@ -206,7 +212,7 @@ input, textarea, select, button {
 
 /* Button styles */
 .btn-primary {
-  background: var(--accent-blue);
+  background: var(--accent-teal);
   color: white;
   padding: 0.5rem 1rem;
   border-radius: 8px;
@@ -218,7 +224,7 @@ input, textarea, select, button {
 }
 
 .btn-primary:hover {
-  background: var(--accent-blue-hover);
+  background: var(--accent-teal-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -286,8 +292,8 @@ input, textarea, select, button {
 }
 
 .input-field:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: var(--accent-teal);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
 }
 
 /* Table styles */
@@ -338,6 +344,11 @@ input, textarea, select, button {
 .badge-red {
   background: rgba(239, 68, 68, 0.15);
   color: var(--accent-red);
+}
+
+.badge-teal {
+  background: rgba(20, 184, 166, 0.15);
+  color: var(--accent-teal);
 }
 
 .badge-blue {

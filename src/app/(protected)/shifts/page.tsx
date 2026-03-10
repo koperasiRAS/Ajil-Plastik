@@ -30,7 +30,10 @@ export default function ShiftsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchShifts(); }, [user, role]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    fetchShifts();
+  }, [user, role]);
 
   const openShift = async (e: React.FormEvent) => {
     e.preventDefault();

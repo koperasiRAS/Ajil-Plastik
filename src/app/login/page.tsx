@@ -52,7 +52,7 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
         <div className="flex flex-col items-center gap-3 animate-fade-in">
-          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-teal)', borderTopColor: 'transparent' }} />
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Memuat...</p>
         </div>
       </div>
@@ -75,16 +75,16 @@ export default function LoginPage() {
 
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full opacity-20 blur-3xl" style={{ background: 'var(--accent-blue)' }} />
+        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full opacity-20 blur-3xl" style={{ background: 'var(--accent-teal)' }} />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full opacity-10 blur-3xl" style={{ background: 'var(--accent-purple)' }} />
       </div>
 
       <div className="w-full max-w-sm relative z-10 animate-fade-in">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Warung Sembako" className="w-36 h-36 mx-auto mb-4 object-contain animate-fade-in-scale" />
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Warung Sembako</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>by RAS — Sistem Kasir</p>
+          <img src="/logo.png" alt="Ajil Plastik" className="w-36 h-36 mx-auto mb-4 object-contain animate-fade-in-scale" />
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Sistem Management</p>
         </div>
 
         {/* Form */}
@@ -113,7 +113,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>© 2026 POS Warung Sembako</p>
+        <p className="text-center mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>© 2026 Ajil Plastik</p>
       </div>
     </div>
   );

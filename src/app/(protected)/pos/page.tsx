@@ -32,7 +32,6 @@ export default function POSPage() {
         // Wrap each query in Promise to handle errors gracefully
         const [prodRes, catRes, shiftRes] = await Promise.all([
           supabase.from('products').select('*, categories(name)').order('name'),
-          // eslint-disable-next-line no-confusing-void-expression
           (async () => { try { return await supabase.from('categories').select('*').order('name'); } catch { return { data: [] }; } })(),
           user ? (async () => { try { return await supabase.from('shifts').select('id').eq('user_id', user.id).eq('status', 'open').limit(1); } catch { return { data: [] }; } })() : Promise.resolve({ data: [] }),
         ]);
@@ -169,7 +168,7 @@ export default function POSPage() {
       // Show receipt IMMEDIATELY (optimistic — don't wait for stock updates)
       const cashReceivedNum = Number.parseFloat(cashReceived) || 0;
       setReceiptData({
-        storeName: 'Warung Sembako by RAS',
+        storeName: 'Ajil Plastik',
         storeAddress: 'Jl. Boulevard Gran City,\nJatimulya, Kec. Ci\nKota Depok, Jawa',
         storePhone: 'Telp: 628551218',
         date: new Date(),
@@ -427,7 +426,7 @@ export default function POSPage() {
             <div className="p-3 rounded-lg text-xs animate-fade-in" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
               <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>🏦 Rekening Transfer</p>
               <p style={{ color: 'var(--accent-blue)' }}>BCA: <span className="font-mono font-bold">6830841685</span></p>
-              <p className="mt-0.5" style={{ color: 'var(--text-muted)' }}>a.n Warung Sembako by RAS</p>
+              <p className="mt-0.5" style={{ color: 'var(--text-muted)' }}>a.n Ajil Plastik</p>
             </div>
           )}
           {paymentMethod === 'qris' && (

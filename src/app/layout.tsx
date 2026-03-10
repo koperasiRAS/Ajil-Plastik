@@ -18,8 +18,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Warung Sembako by RAS",
-  description: "Sistem Kasir Warung Sembako",
+  title: "Ajil Plastik",
+  description: "Sistem Management Ajil Plastik",
 };
 
 export default function RootLayout({

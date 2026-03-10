@@ -28,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => void }>) {
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, store, stores, setStore } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
   const [lowStockCount, setLowStockCount] = useState(0);
@@ -60,26 +60,49 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
     >
       {/* Header */}
       <div
-        className="p-4 flex items-center justify-between"
+        className="p-4 flex flex-col gap-2"
         style={{ borderBottom: '1px solid var(--border-default)' }}
       >
         {!collapsed && (
           <div className="animate-fade-in flex items-center gap-2">
             <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
             <div>
-              <h1 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Warung Sembako</h1>
-              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>by RAS</p>
+              <h1 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</h1>
+              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Management System</p>
             </div>
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110 ml-auto"
+              style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
+              title={collapsed ? 'Expand' : 'Collapse'}
+            >
+              {collapsed ? '→' : '←'}
+            </button>
           </div>
         )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110"
-          style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          {collapsed ? '→' : '←'}
-        </button>
+        {/* Store Selector */}
+        {!collapsed && stores.length > 0 && (
+          <select
+            value={store?.id || ''}
+            onChange={(e) => setStore(e.target.value)}
+            className="input-field text-xs py-1.5"
+            style={{ fontSize: '0.75rem' }}
+          >
+            {stores.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        )}
+        {collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110 mx-auto mt-2 block"
+            style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
+            title="Expand"
+          >
+            →
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -96,7 +119,7 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
                 collapsed ? 'justify-center' : ''
               }`}
               style={{
-                background: isActive ? 'var(--accent-blue)' : 'transparent',
+                background: isActive ? 'var(--accent-teal)' : 'transparent',
                 color: isActive ? 'white' : 'var(--text-secondary)',
                 fontWeight: isActive ? 500 : 400,
                 transform: isActive ? 'scale(1)' : undefined,

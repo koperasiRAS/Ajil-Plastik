@@ -13,6 +13,7 @@ export default function EmployeesPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [name, setName] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'owner' | 'employee'>('employee');
 

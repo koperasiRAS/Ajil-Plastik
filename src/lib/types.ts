@@ -1,10 +1,20 @@
 export type UserRole = 'owner' | 'employee';
 
+export interface Store {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface AppUser {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+  store_id: string | null;
   created_at: string;
 }
 

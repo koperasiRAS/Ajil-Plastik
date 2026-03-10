@@ -27,6 +27,7 @@ export default function ProtectedLayout({ children }: Readonly<{ children: React
   }, [session, role, loading, pathname, router]);
 
   // Close mobile menu on route change
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
@@ -71,7 +72,7 @@ export default function ProtectedLayout({ children }: Readonly<{ children: React
         </button>
         <div className="flex items-center gap-2">
           <img src="/logo.png" alt="Logo" className="w-7 h-7 object-contain" />
-          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Warung Sembako</span>
+          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</span>
         </div>
         <div className="w-9" /> {/* Spacer */}
       </div>

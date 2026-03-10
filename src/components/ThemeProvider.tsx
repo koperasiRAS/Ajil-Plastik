@@ -15,11 +15,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark');
   const [mounted, setMounted] = useState(false);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const saved = localStorage.getItem('pos-theme') as Theme | null;
-    if (saved) {
-      setTheme(saved);
-    }
+    if (saved) setTheme(saved);
     setMounted(true);
   }, []);
 

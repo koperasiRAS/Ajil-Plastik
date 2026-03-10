@@ -182,7 +182,7 @@ export default function ReceiptPrint({ data, onClose }: Readonly<{ data: Receipt
             {data.paymentMethod === 'transfer' && (
               <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '2px' }}>
                 <div>Transfer ke BCA: 6830841685</div>
-                <div>a.n Warung Sembako by RAS</div>
+                <div>a.n Ajil Plastik</div>
               </div>
             )}
 
