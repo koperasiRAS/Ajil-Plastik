@@ -60,7 +60,7 @@ export default function DashboardPage() {
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto" style={{ background: 'var(--bg-primary)', minHeight: '100vh' }}>
       <div className="flex items-center gap-3 mb-6 animate-fade-in">
-        <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+        <img src="/logo.png" alt="Logo" className="w-10 h-auto object-contain" />
         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Dashboard</h1>
       </div>
 

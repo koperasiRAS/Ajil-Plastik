@@ -65,7 +65,7 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
       >
         {!collapsed && (
           <div className="animate-fade-in flex items-center gap-2">
-            <img src="/logo.png" alt="Logo" className="w-14 h-14 object-contain" />
+            <img src="/logo.png" alt="Logo" className="w-14 h-auto object-contain" />
             <button
               onClick={() => setCollapsed(!collapsed)}
               className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110 ml-auto"

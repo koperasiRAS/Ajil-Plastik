@@ -71,7 +71,7 @@ export default function ProtectedLayout({ children }: Readonly<{ children: React
           </svg>
         </button>
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+          <img src="/logo.png" alt="Logo" className="w-10 h-auto object-contain" />
         </div>
         <div className="w-9" /> {/* Spacer */}
       </div>

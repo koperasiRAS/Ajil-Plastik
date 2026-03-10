@@ -82,7 +82,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm relative z-10 animate-fade-in">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Logo" className="w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 mx-auto object-contain animate-fade-in-scale" />
+          <img src="/logo.png" alt="Logo" className="w-64 sm:w-72 md:w-80 h-auto mx-auto object-contain animate-fade-in-scale" />
         </div>
 
         {/* Form */}
