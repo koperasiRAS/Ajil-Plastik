@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
 interface NavItem {
@@ -31,24 +32,23 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
   const { user, role, logout, store, stores, setStore } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
-  const [lowStockCount, setLowStockCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
 
   const filteredItems = NAV_ITEMS.filter(item => role && item.roles.includes(role));
 
-  // Check for low stock
-  useEffect(() => {
-    const checkLowStock = async () => {
+  // Check for low stock — cached with React Query, refreshes every 60s
+  const { data: lowStockCount = 0 } = useQuery({
+    queryKey: ['low-stock-count'],
+    queryFn: async () => {
       const { count } = await supabase
         .from('products')
         .select('id', { count: 'exact', head: true })
         .lte('stock', 5);
-      setLowStockCount(count || 0);
-    };
-    checkLowStock();
-    const interval = setInterval(checkLowStock, 30000);
-    return () => clearInterval(interval);
-  }, []);
+      return count || 0;
+    },
+    staleTime: 60_000, // 60 seconds
+    refetchInterval: 60_000, // Auto-refresh every 60s
+  });
 
   return (
     <aside

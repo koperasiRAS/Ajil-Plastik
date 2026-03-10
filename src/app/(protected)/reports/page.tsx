@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { authFetch } from '@/lib/authFetch';
 
 interface DailyData {
@@ -19,112 +20,110 @@ export default function ReportsPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [dailyData, setDailyData] = useState<DailyData[]>([]);
-  const [summary, setSummary] = useState({ income: 0, cogs: 0, expenses: 0, grossProfit: 0, netProfit: 0, txnCount: 0, grossMargin: 0, netMargin: 0 });
-  const [loading, setLoading] = useState(true);
-  const [paymentBreakdown, setPaymentBreakdown] = useState({ cash: 0, qris: 0, transfer: 0 });
-  const [expenseBreakdown, setExpenseBreakdown] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    const fetchReport = async () => {
-      setLoading(true);
-      try {
-        const [year, mon] = month.split('-').map(Number);
-        const startDate = new Date(year, mon - 1, 1);
-        const endDate = new Date(year, mon, 0);
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['reports', month],
+    queryFn: async () => {
+      const res = await authFetch(`/api/reports?month=${month}`);
+      if (!res.ok) throw new Error('API error');
+      return res.json();
+    },
+  });
 
-        const res = await authFetch(`/api/reports?month=${month}`);
-        if (!res.ok) throw new Error('API error');
-        const apiData = await res.json();
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const txnItems: any[] = apiData.txnItems || [];
-        const exps: { amount: number; date: string; category: string }[] = apiData.expenses || [];
-
-        const transactions: { total: number; created_at: string; payment_method: string }[] = apiData.transactions || [];
-        const items = txnItems;
-
-        // Daily breakdown
-        const daysMap: Record<string, DailyData> = {};
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-          const dateStr = d.toISOString().split('T')[0];
-          daysMap[dateStr] = { date: dateStr, income: 0, cogs: 0, expenses: 0, grossProfit: 0, netProfit: 0, txnCount: 0 };
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        transactions.forEach((t: any) => {
-          const dateStr = new Date(t.created_at).toISOString().split('T')[0];
-          if (daysMap[dateStr]) {
-            daysMap[dateStr].income += Number(t.total);
-            daysMap[dateStr].txnCount += 1;
-          }
-        });
-
-        // COGS per day
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        items.forEach((item: any) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const txnDate = (item.transactions as any)?.created_at;
-          if (txnDate) {
-            const dateStr = new Date(txnDate).toISOString().split('T')[0];
-            if (daysMap[dateStr]) {
-              daysMap[dateStr].cogs += Number(item.cost_price || 0) * Number(item.quantity);
-            }
-          }
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        exps.forEach((e: any) => {
-          if (daysMap[e.date]) {
-            daysMap[e.date].expenses += Number(e.amount);
-          }
-        });
-
-        Object.values(daysMap).forEach(d => {
-          d.grossProfit = d.income - d.cogs;
-          d.netProfit = d.grossProfit - d.expenses;
-        });
-
-        const days = Object.values(daysMap).sort((a, b) => b.date.localeCompare(a.date));
-        setDailyData(days);
-
-        // Summary
-        const totalIncome = transactions.reduce((s, t) => s + Number(t.total), 0);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const totalCOGS = items.reduce((s: number, item: any) => s + (Number(item.cost_price || 0) * Number(item.quantity)), 0);
-        const totalExpenses = exps.reduce((s, e) => s + Number(e.amount), 0);
-        const totalGrossProfit = totalIncome - totalCOGS;
-        const totalNetProfit = totalGrossProfit - totalExpenses;
-        setSummary({
-          income: totalIncome, cogs: totalCOGS, expenses: totalExpenses,
-          grossProfit: totalGrossProfit, netProfit: totalNetProfit,
-          txnCount: transactions.length,
-          grossMargin: totalIncome > 0 ? (totalGrossProfit / totalIncome * 100) : 0,
-          netMargin: totalIncome > 0 ? (totalNetProfit / totalIncome * 100) : 0,
-        });
-
-        // Payment breakdown
-        const pBreak = { cash: 0, qris: 0, transfer: 0 };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        transactions.forEach((t: any) => {
-          const m = t.payment_method as keyof typeof pBreak;
-          if (m in pBreak) pBreak[m] += Number(t.total);
-        });
-        setPaymentBreakdown(pBreak);
-
-        // Expense breakdown
-        const eBreak: Record<string, number> = {};
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        exps.forEach((e: any) => { eBreak[e.category] = (eBreak[e.category] || 0) + Number(e.amount); });
-        setExpenseBreakdown(eBreak);
-      } catch (err) {
-        console.error('Report error:', err);
-      } finally {
-        setLoading(false);
-      }
+  // Process data with useMemo to avoid recalculation on re-renders
+  const { dailyData, summary, paymentBreakdown, expenseBreakdown } = useMemo(() => {
+    if (!reportData) return {
+      dailyData: [],
+      summary: { income: 0, cogs: 0, expenses: 0, grossProfit: 0, netProfit: 0, txnCount: 0, grossMargin: 0, netMargin: 0 },
+      paymentBreakdown: { cash: 0, qris: 0, transfer: 0 },
+      expenseBreakdown: {} as Record<string, number>,
     };
-    fetchReport();
-  }, [month]);
+
+    const [year, mon] = month.split('-').map(Number);
+    const startDate = new Date(year, mon - 1, 1);
+    const endDate = new Date(year, mon, 0);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const txnItems: any[] = reportData.txnItems || [];
+    const exps: { amount: number; date: string; category: string }[] = reportData.expenses || [];
+    const transactions: { total: number; created_at: string; payment_method: string }[] = reportData.transactions || [];
+
+    // Daily breakdown
+    const daysMap: Record<string, DailyData> = {};
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      daysMap[dateStr] = { date: dateStr, income: 0, cogs: 0, expenses: 0, grossProfit: 0, netProfit: 0, txnCount: 0 };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    transactions.forEach((t: any) => {
+      const dateStr = new Date(t.created_at).toISOString().split('T')[0];
+      if (daysMap[dateStr]) {
+        daysMap[dateStr].income += Number(t.total);
+        daysMap[dateStr].txnCount += 1;
+      }
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    txnItems.forEach((item: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const txnDate = (item.transactions as any)?.created_at;
+      if (txnDate) {
+        const dateStr = new Date(txnDate).toISOString().split('T')[0];
+        if (daysMap[dateStr]) {
+          daysMap[dateStr].cogs += Number(item.cost_price || 0) * Number(item.quantity);
+        }
+      }
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    exps.forEach((e: any) => {
+      if (daysMap[e.date]) {
+        daysMap[e.date].expenses += Number(e.amount);
+      }
+    });
+
+    Object.values(daysMap).forEach(d => {
+      d.grossProfit = d.income - d.cogs;
+      d.netProfit = d.grossProfit - d.expenses;
+    });
+
+    const days = Object.values(daysMap).sort((a, b) => b.date.localeCompare(a.date));
+
+    // Summary
+    const totalIncome = transactions.reduce((s, t) => s + Number(t.total), 0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const totalCOGS = txnItems.reduce((s: number, item: any) => s + (Number(item.cost_price || 0) * Number(item.quantity)), 0);
+    const totalExpenses = exps.reduce((s, e) => s + Number(e.amount), 0);
+    const totalGrossProfit = totalIncome - totalCOGS;
+    const totalNetProfit = totalGrossProfit - totalExpenses;
+
+    // Payment breakdown
+    const pBreak = { cash: 0, qris: 0, transfer: 0 };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    transactions.forEach((t: any) => {
+      const m = t.payment_method as keyof typeof pBreak;
+      if (m in pBreak) pBreak[m] += Number(t.total);
+    });
+
+    // Expense breakdown
+    const eBreak: Record<string, number> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    exps.forEach((e: any) => { eBreak[e.category] = (eBreak[e.category] || 0) + Number(e.amount); });
+
+    return {
+      dailyData: days,
+      summary: {
+        income: totalIncome, cogs: totalCOGS, expenses: totalExpenses,
+        grossProfit: totalGrossProfit, netProfit: totalNetProfit,
+        txnCount: transactions.length,
+        grossMargin: totalIncome > 0 ? (totalGrossProfit / totalIncome * 100) : 0,
+        netMargin: totalIncome > 0 ? (totalNetProfit / totalIncome * 100) : 0,
+      },
+      paymentBreakdown: pBreak,
+      expenseBreakdown: eBreak,
+    };
+  }, [reportData, month]);
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
@@ -151,7 +150,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
         </div>

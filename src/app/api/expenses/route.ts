@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createServerSupabase();
+  const { searchParams } = new URL(req.url);
+  const month = searchParams.get('month'); // e.g. "2026-03"
+
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('expenses')
       .select('*')
       .order('date', { ascending: false });
+
+    // Server-side month filtering
+    if (month) {
+      const [year, mon] = month.split('-').map(Number);
+      const lastDay = new Date(year, mon, 0).getDate();
+      const startDate = `${year}-${String(mon).padStart(2, '0')}-01`;
+      const endDate = `${year}-${String(mon).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      query = query.gte('date', startDate).lte('date', endDate);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return NextResponse.json(data || []);
   } catch (err) {

@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { authFetch } from '@/lib/authFetch';
+import { useState, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/lib/types';
 import { uploadProductImage } from '@/lib/imageUpload';
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
@@ -29,38 +27,33 @@ export default function ProductsPage() {
   const [imageObjectUrl, setImageObjectUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Category management
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const res = await authFetch('/api/products');
-      if (!res.ok) throw new Error('API error');
-      const data = await res.json();
-      setProducts(Array.isArray(data) ? data : []);
+  const { data: productsData, isLoading } = useQuery({
+    queryKey: ['products-page'],
+    queryFn: async () => {
+      const prodRes = await supabase.from('products').select('*, categories(name)').order('name');
+      let categories: Category[] = [];
       try {
         const catRes = await supabase.from('categories').select('*').order('name');
-        setCategories((catRes.data as Category[]) || []);
-      } catch { setCategories([]); }
-    } catch (err) {
-      console.error('Products fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+        categories = (catRes.data as Category[]) || [];
+      } catch { /* ignore */ }
+      return {
+        products: (prodRes.data as Product[]) || [],
+        categories,
+      };
+    },
+  });
 
-  useEffect(() => { fetchData(); }, []);
+  const products = productsData?.products || [];
+  const categories = productsData?.categories || [];
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['products-page'] });
 
   const resetForm = () => {
-    // Clean up object URL to prevent memory leak
-    if (imageObjectUrl) {
-      URL.revokeObjectURL(imageObjectUrl);
-    }
+    if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
     setName(''); setBarcode(''); setCostPrice(''); setPrice(''); setStock(''); setCategoryId('');
-    setImagePreview(null); setImageFile(null);
-    setImageObjectUrl(null);
+    setImagePreview(null); setImageFile(null); setImageObjectUrl(null);
     setEditingProduct(null); setShowForm(false);
   };
 
@@ -80,10 +73,7 @@ export default function ProductsPage() {
       setMessage({ type: 'error', text: 'Ukuran file maksimal 5MB' });
       return;
     }
-    // Clean up previous object URL to prevent memory leak
-    if (imageObjectUrl) {
-      URL.revokeObjectURL(imageObjectUrl);
-    }
+    if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
     const newObjectUrl = URL.createObjectURL(file);
     setImageFile(file);
     setImagePreview(newObjectUrl);
@@ -96,8 +86,6 @@ export default function ProductsPage() {
 
     try {
       let imageUrl = editingProduct?.image_url || null;
-
-      // Upload image if new file selected
       if (imageFile) {
         setUploading(true);
         const tempId = editingProduct?.id || crypto.randomUUID();
@@ -120,7 +108,7 @@ export default function ProductsPage() {
         if (error) throw error;
         setMessage({ type: 'success', text: '✓ Produk berhasil ditambahkan' });
       }
-      resetForm(); fetchData();
+      resetForm(); invalidate();
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal menyimpan' });
     } finally { setSaving(false); setUploading(false); }
@@ -130,14 +118,14 @@ export default function ProductsPage() {
     if (!confirm('Hapus produk ini?')) return;
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) setMessage({ type: 'error', text: 'Gagal menghapus produk' });
-    else { setMessage({ type: 'success', text: '✓ Produk dihapus' }); fetchData(); }
+    else { setMessage({ type: 'success', text: '✓ Produk dihapus' }); invalidate(); }
   };
 
   const addCategory = async () => {
     if (!newCategoryName.trim()) return;
     const { error } = await supabase.from('categories').insert({ name: newCategoryName.trim() });
     if (error) setMessage({ type: 'error', text: error.message });
-    else { setNewCategoryName(''); setShowCategoryForm(false); fetchData(); }
+    else { setNewCategoryName(''); setShowCategoryForm(false); invalidate(); }
   };
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
@@ -174,7 +162,6 @@ export default function ProductsPage() {
 
       {message && <div className={`mb-4 ${message.type === 'success' ? 'alert-success' : 'alert-error'}`}>{message.text}</div>}
 
-      {/* Category quick-add */}
       {showCategoryForm && (
         <div className="glass-card p-4 mb-4 flex gap-2 items-end animate-fade-in-scale">
           <div className="flex-1">
@@ -186,7 +173,6 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="flex gap-3 mb-4 animate-fade-in">
         <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
           placeholder="🔍 Cari produk..." className="input-field flex-1" />
@@ -196,14 +182,12 @@ export default function ProductsPage() {
         </select>
       </div>
 
-      {/* Product Form */}
       {showForm && (
         <div className="glass-card p-5 mb-6 animate-fade-in-scale">
           <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
             {editingProduct ? '✏️ Edit Produk' : '➕ Tambah Produk Baru'}
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-            {/* Image Upload */}
             <div className="col-span-2">
               <label className="block text-xs mb-2" style={{ color: 'var(--text-muted)' }}>📸 Foto Produk</label>
               <div className="flex items-center gap-4">
@@ -258,8 +242,7 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Product Table */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
         </div>

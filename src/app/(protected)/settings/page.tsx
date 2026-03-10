@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { authFetch } from '@/lib/authFetch';
 
 interface DataSection {
@@ -24,23 +25,17 @@ const DATA_SECTIONS: DataSection[] = [
 export default function SettingsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [loadingCounts, setLoadingCounts] = useState(true);
   const [confirmAll, setConfirmAll] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
 
-  useEffect(() => {
-    const loadCounts = async () => {
-      try {
-        const res = await authFetch('/api/settings');
-        if (!res.ok) throw new Error('API error');
-        const data = await res.json();
-        setCounts(data);
-      } catch { setCounts({}); }
-      setLoadingCounts(false);
-    };
-    loadCounts();
-  }, []);
+  const { data: counts = {}, isLoading: loadingCounts, refetch } = useQuery<Record<string, number>>({
+    queryKey: ['settings-counts'],
+    queryFn: async () => {
+      const res = await authFetch('/api/settings');
+      if (!res.ok) throw new Error('API error');
+      return res.json();
+    },
+  });
 
   const deleteTable = async (section: DataSection) => {
     const input = prompt(`Hapus semua data ${section.label}? Ketik "HAPUS" untuk konfirmasi.`);
@@ -55,11 +50,8 @@ export default function SettingsPage() {
     try {
       const res = await fetch(`/api/settings?table=${section.table}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-
-      setCounts(prev => ({ ...prev, [section.key]: 0 }));
-      if (section.key === 'transactions') setCounts(prev => ({ ...prev, transaction_items: 0 }));
-      if (section.key === 'products') setCounts(prev => ({ ...prev, stock_logs: 0, transaction_items: 0 }));
       setMessage({ type: 'success', text: `✓ Data ${section.label} berhasil dihapus` });
+      refetch();
     } catch (err) {
       setMessage({ type: 'error', text: `Gagal: ${err instanceof Error ? err.message : 'Error'}` });
     } finally {
@@ -73,8 +65,8 @@ export default function SettingsPage() {
     try {
       const res = await authFetch('/api/settings?all=true', { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-      setCounts(prev => ({ ...prev, transaction_items: 0, transactions: 0, stock_logs: 0, expenses: 0, shifts: 0 }));
       setMessage({ type: 'success', text: '✓ Semua data dihapus. Produk & kategori tetap ada.' });
+      refetch();
     } catch (err) {
       setMessage({ type: 'error', text: `Gagal: ${err instanceof Error ? err.message : 'Error'}` });
     } finally {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { authFetch } from '@/lib/authFetch';
 import { Transaction } from '@/lib/types';
 
@@ -9,59 +10,34 @@ interface TransactionWithItems extends Transaction {
   transaction_items: { id: string; quantity: number; price: number; products: { name: string } | null; }[];
 }
 
-interface PaginationData {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
-
 export default function HistoryPage() {
-  const [transactions, setTransactions] = useState<TransactionWithItems[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState<PaginationData | null>(null);
 
-  const fetchHistory = async (pageNum: number = 1) => {
-    setLoading(true);
-    try {
+  const { data: historyData, isLoading } = useQuery({
+    queryKey: ['history', page, dateFrom, dateTo],
+    queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('page', pageNum.toString());
+      params.set('page', page.toString());
       params.set('limit', '20');
       if (dateFrom) params.set('from', dateFrom);
       if (dateTo) params.set('to', dateTo);
       const res = await authFetch(`/api/history?${params.toString()}`);
       if (!res.ok) throw new Error('API error');
-      const data = await res.json();
-      setTransactions(Array.isArray(data.data) ? data.data : []);
-      setPagination(data.pagination || null);
-    } catch { setTransactions([]); }
-    setLoading(false);
-  };
+      return res.json();
+    },
+    placeholderData: (prev: any) => prev, // Keep previous data while loading
+  });
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    setPage(1);
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    fetchHistory(1);
-  }, [dateFrom, dateTo]);
-
-  // Handle page change
-  const handlePageChange = useCallback((newPage: number) => {
-    setPage(newPage);
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    fetchHistory(newPage);
-  }, []);
+  const transactions: TransactionWithItems[] = Array.isArray(historyData?.data) ? historyData.data : [];
+  const pagination = historyData?.pagination || null;
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
   const paymentLabel = (m: string) => m === 'cash' ? '💵 Cash' : m === 'qris' ? '📱 QRIS' : '🏦 Transfer';
   const totalRevenue = transactions.reduce((s, t) => s + Number(t.total), 0);
 
-  // Export CSV
   const exportCSV = () => {
     const headers = ['Tanggal', 'Kasir', 'Total', 'Metode Bayar', 'Diskon', 'Items'];
     const rows = transactions.map(t => [
@@ -85,23 +61,21 @@ export default function HistoryPage() {
         </button>
       </div>
 
-      {/* Date Filter */}
       <div className="flex gap-3 mb-4 animate-fade-in">
         <div className="flex-1">
           <label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Dari Tanggal</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="input-field" />
+          <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="input-field" />
         </div>
         <div className="flex-1">
           <label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Sampai Tanggal</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="input-field" />
+          <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="input-field" />
         </div>
         {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="self-end px-3 py-2 text-xs rounded-lg"
+          <button onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }} className="self-end px-3 py-2 text-xs rounded-lg"
             style={{ color: 'var(--accent-red)', background: 'var(--bg-input)' }}>Reset</button>
         )}
       </div>
 
-      {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 animate-fade-in">
         <div className="stat-card">
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Total Transaksi</p>
@@ -121,7 +95,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
         </div>
@@ -168,12 +142,11 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {/* Pagination Controls */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6 animate-fade-in">
           <button
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || loading}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1 || isLoading}
             className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
           >
@@ -183,8 +156,8 @@ export default function HistoryPage() {
             Halaman {page} dari {pagination.totalPages}
           </span>
           <button
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= pagination.totalPages || loading}
+            onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+            disabled={page >= pagination.totalPages || isLoading}
             className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
           >

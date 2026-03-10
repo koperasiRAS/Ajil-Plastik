@@ -1,34 +1,35 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { authFetch } from '@/lib/authFetch';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Product, StockLog } from '@/lib/types';
+import { Product } from '@/lib/types';
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [stockLogs, setStockLogs] = useState<StockLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [selectedProduct, setSelectedProduct] = useState('');
   const [restockQty, setRestockQty] = useState('');
   const [restockNote, setRestockNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
+  const { data: inventoryData, isLoading } = useQuery({
+    queryKey: ['inventory'],
+    queryFn: async () => {
       const [productsRes, logsRes] = await Promise.all([
-        authFetch('/api/inventory').then(r => r.json()),
+        supabase.from('products').select('*, categories(name)').order('name'),
         supabase.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(50),
       ]);
-      setProducts(Array.isArray(productsRes) ? productsRes : []);
-      setStockLogs(logsRes.data || []);
-    } catch { /* */ }
-    setLoading(false);
-  };
+      return {
+        products: (productsRes.data as Product[]) || [],
+        stockLogs: logsRes.data || [],
+      };
+    },
+  });
 
-  useEffect(() => { fetchData(); }, []);
+  const products = inventoryData?.products || [];
+  const stockLogs = inventoryData?.stockLogs || [];
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['inventory'] });
 
   const handleRestock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +52,7 @@ export default function InventoryPage() {
 
       setMessage({ type: 'success', text: `✓ Berhasil restock ${product.name} +${qty}` });
       setSelectedProduct(''); setRestockQty(''); setRestockNote('');
-      fetchData();
+      invalidate();
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal restock' });
     } finally { setSaving(false); }
@@ -68,7 +69,7 @@ export default function InventoryPage() {
 
   const lowStockProducts = products.filter(p => p.stock <= 5);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="p-6 flex justify-center py-12" style={{ background: 'var(--bg-primary)' }}>
         <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
@@ -82,7 +83,6 @@ export default function InventoryPage() {
 
       {message && <div className={`mb-4 ${message.type === 'success' ? 'alert-success' : 'alert-error'}`}>{message.text}</div>}
 
-      {/* Restock Form */}
       <div className="glass-card p-5 mb-6 animate-fade-in">
         <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>📥 Restock Produk</h3>
         <form onSubmit={handleRestock} className="flex gap-3 items-end flex-wrap">
@@ -105,7 +105,6 @@ export default function InventoryPage() {
         </form>
       </div>
 
-      {/* Low Stock Alert */}
       {lowStockProducts.length > 0 && (
         <div className="mb-6 animate-fade-in">
           <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: 'var(--accent-red)' }}>
@@ -123,7 +122,6 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Stock Logs Table */}
       <div className="glass-card overflow-hidden animate-fade-in">
         <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border-default)' }}>
           <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>📖 Riwayat Stok</h3>

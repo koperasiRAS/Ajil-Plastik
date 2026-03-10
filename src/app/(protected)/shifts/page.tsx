@@ -1,39 +1,38 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { authFetch } from '@/lib/authFetch';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Shift } from '@/lib/types';
 
 export default function ShiftsPage() {
   const { user, role } = useAuth();
-  const [shifts, setShifts] = useState<(Shift & { users?: { name: string } })[]>([]);
-  const [activeShift, setActiveShift] = useState<Shift | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const fetchShifts = async () => {
-    if (!user) return;
-    setLoading(true);
+  const { data: shiftsData, isLoading } = useQuery({
+    queryKey: ['shifts', user?.id, role],
+    queryFn: async () => {
+      if (!user) return { active: null, shifts: [] };
+      const { data: activeData } = await supabase
+        .from('shifts').select('*').eq('user_id', user.id).eq('status', 'open').limit(1).maybeSingle();
+      const query = supabase.from('shifts').select('*, users(name)').order('opened_at', { ascending: false }).limit(50);
+      if (role === 'employee') query.eq('user_id', user.id);
+      const { data } = await query;
+      return { active: activeData as Shift | null, shifts: data || [] };
+    },
+    enabled: !!user,
+  });
 
-    const { data: activeData } = await supabase
-      .from('shifts').select('*').eq('user_id', user.id).eq('status', 'open').limit(1).maybeSingle();
-    setActiveShift(activeData as Shift | null);
+  const activeShift = shiftsData?.active || null;
+  const shifts = shiftsData?.shifts || [];
 
-    const query = supabase.from('shifts').select('*, users(name)').order('opened_at', { ascending: false }).limit(50);
-    if (role === 'employee') query.eq('user_id', user.id);
-    const { data } = await query;
-    setShifts(data || []);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    fetchShifts();
-  }, [user, role]);
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['shifts'] });
 
   const openShift = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +42,7 @@ export default function ShiftsPage() {
       const { error } = await supabase.from('shifts').insert({ user_id: user.id, opening_cash: Number.parseFloat(openingCash) || 0, status: 'open' });
       if (error) throw error;
       setMessage({ type: 'success', text: '✓ Shift berhasil dibuka!' });
-      setOpeningCash(''); fetchShifts();
+      setOpeningCash(''); invalidate();
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal membuka shift' });
     } finally { setSaving(false); }
@@ -59,7 +58,7 @@ export default function ShiftsPage() {
       }).eq('id', activeShift.id);
       if (error) throw error;
       setMessage({ type: 'success', text: '✓ Shift berhasil ditutup!' });
-      setClosingCash(''); setActiveShift(null); fetchShifts();
+      setClosingCash(''); invalidate();
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal menutup shift' });
     } finally { setSaving(false); }
@@ -67,7 +66,7 @@ export default function ShiftsPage() {
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="p-6 flex justify-center py-12" style={{ background: 'var(--bg-primary)' }}>
         <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
@@ -122,7 +121,7 @@ export default function ShiftsPage() {
         <table className="data-table">
           <thead><tr><th>Kasir</th><th>Buka</th><th>Tutup</th><th className="text-right">Kas Awal</th><th className="text-right">Kas Akhir</th><th className="text-center">Status</th></tr></thead>
           <tbody>
-            {shifts.map(shift => (
+            {shifts.map((shift: any) => (
               <tr key={shift.id}>
                 <td style={{ color: 'var(--text-primary)' }}>{shift.users?.name || '-'}</td>
                 <td className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(shift.opened_at).toLocaleString('id-ID')}</td>

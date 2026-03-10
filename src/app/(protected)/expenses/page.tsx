@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { authFetch } from '@/lib/authFetch';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -10,8 +11,6 @@ const EXPENSE_CATEGORIES = ['Belanja Stok', 'Listrik', 'Air', 'Gaji', 'Sewa', 'T
 
 export default function ExpensesPage() {
   const { user } = useAuth();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -25,27 +24,15 @@ export default function ExpensesPage() {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
 
-  const fetchExpenses = async () => {
-    setLoading(true);
-    try {
-      const res = await authFetch('/api/expenses');
+  const { data: expenses = [], isLoading, refetch } = useQuery<Expense[]>({
+    queryKey: ['expenses', filterMonth],
+    queryFn: async () => {
+      const res = await authFetch(`/api/expenses?month=${filterMonth}`);
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
-      // Filter by month client-side since API returns all
-      const [year, month] = filterMonth.split('-').map(Number);
-      const filtered = (data || []).filter((e: Expense) => {
-        const d = new Date(e.date);
-        return d.getFullYear() === year && d.getMonth() === month - 1;
-      });
-      setExpenses(filtered);
-    } catch { setExpenses([]); }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    fetchExpenses();
-  }, [filterMonth]);
+      return Array.isArray(data) ? data : [];
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +44,7 @@ export default function ExpensesPage() {
       });
       if (error) throw error;
       setMessage({ type: 'success', text: '✓ Pengeluaran berhasil dicatat' });
-      setCategory(''); setAmount(''); setDescription(''); setShowForm(false); fetchExpenses();
+      setCategory(''); setAmount(''); setDescription(''); setShowForm(false); refetch();
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal menyimpan' });
     } finally { setSaving(false); }
@@ -66,19 +53,17 @@ export default function ExpensesPage() {
   const deleteExpense = async (id: string) => {
     if (!confirm('Hapus pengeluaran ini?')) return;
     await supabase.from('expenses').delete().eq('id', id);
-    fetchExpenses();
+    refetch();
   };
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
 
-  // Group by category
   const byCategory = expenses.reduce((acc, e) => {
     acc[e.category] = (acc[e.category] || 0) + Number(e.amount);
     return acc;
   }, {} as Record<string, number>);
 
-  // Export CSV
   const exportCSV = () => {
     const headers = ['Tanggal', 'Kategori', 'Jumlah', 'Keterangan'];
     const rows = expenses.map(e => [e.date, e.category, e.amount, e.description || '-']);
@@ -102,12 +87,10 @@ export default function ExpensesPage() {
 
       {message && <div className={`mb-4 ${message.type === 'success' ? 'alert-success' : 'alert-error'}`}>{message.text}</div>}
 
-      {/* Month Filter */}
       <div className="mb-4 animate-fade-in">
         <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="input-field w-48" />
       </div>
 
-      {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 stagger-children">
         <div className="stat-card">
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Total Bulan Ini</p>
@@ -121,7 +104,6 @@ export default function ExpensesPage() {
         ))}
       </div>
 
-      {/* Add Form */}
       {showForm && (
         <div className="glass-card p-5 mb-6 animate-fade-in-scale">
           <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>➕ Catat Pengeluaran</h3>
@@ -146,8 +128,7 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Expenses Table */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
         </div>

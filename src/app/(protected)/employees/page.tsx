@@ -1,34 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { authFetch } from '@/lib/authFetch';
 import { AppUser } from '@/lib/types';
+import { useState } from 'react';
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<AppUser[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
   const [name, setName] = useState('');
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'owner' | 'employee'>('employee');
 
-  const fetchEmployees = async () => {
-    setLoading(true);
-    try {
+  const { data: employees = [], isLoading, refetch } = useQuery<AppUser[]>({
+    queryKey: ['employees'],
+    queryFn: async () => {
       const res = await authFetch('/api/employees');
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
-      setEmployees(Array.isArray(data) ? data : []);
-    } catch { setEmployees([]); }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchEmployees(); }, []);
+      return Array.isArray(data) ? data : [];
+    },
+  });
 
   const resetForm = () => { setName(''); setEmail(''); setRole('employee'); setEditingUser(null); setShowForm(false); };
 
@@ -57,7 +51,7 @@ export default function EmployeesPage() {
         setSaving(false);
         return;
       }
-      resetForm(); fetchEmployees();
+      resetForm(); refetch();
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal menyimpan' });
     } finally { setSaving(false); }
@@ -71,7 +65,6 @@ export default function EmployeesPage() {
 
       {message && <div className={`mb-4 ${message.type === 'success' ? 'alert-success' : 'alert-error'}`}>{message.text}</div>}
 
-      {/* Edit Form */}
       {showForm && editingUser && (
         <div className="glass-card p-5 mb-6 animate-fade-in-scale">
           <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>✏️ Edit Karyawan</h3>
@@ -92,7 +85,6 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* Help */}
       <div className="glass-card p-4 mb-6 animate-fade-in" style={{ borderColor: 'rgba(59, 130, 246, 0.3)' }}>
         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
           💡 <strong>Menambah karyawan baru:</strong> Buat akun di Supabase Dashboard → Authentication → Users → Add User. 
@@ -100,8 +92,7 @@ export default function EmployeesPage() {
         </p>
       </div>
 
-      {/* Employees Table */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
         </div>
