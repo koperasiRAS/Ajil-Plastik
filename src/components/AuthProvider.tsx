@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode, useMemo } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useMemo, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { clearAuthCache } from '@/lib/authFetch';
@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [store, setStore] = useState<Store | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
+  const initDone = useRef(false);
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (error || !data) {
+        console.error('Failed to fetch user profile:', error?.message);
         setUser(null);
         setRole(null);
         return;
@@ -46,23 +48,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(data.role as UserRole);
 
       // Fetch stores for multi-branch support
-      const { data: storesData } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
+      try {
+        const { data: storesData } = await supabase
+          .from('stores')
+          .select('*')
+          .eq('is_active', true)
+          .order('name');
 
-      if (storesData) {
-        setStores(storesData as Store[]);
-        // Set current store based on user data or first store
-        if (data.store_id) {
-          const currentStore = storesData.find(s => s.id === data.store_id);
-          if (currentStore) setStore(currentStore as Store);
-        } else if (storesData.length > 0) {
-          setStore(storesData[0] as Store);
+        if (storesData && storesData.length > 0) {
+          setStores(storesData as Store[]);
+          // Set current store based on user data or first store
+          if (data.store_id) {
+            const currentStore = storesData.find(s => s.id === data.store_id);
+            if (currentStore) setStore(currentStore as Store);
+          } else {
+            setStore(storesData[0] as Store);
+          }
         }
+      } catch (storeErr) {
+        console.error('Failed to fetch stores:', storeErr);
+        // Non-critical — continue without stores
       }
-    } catch {
+    } catch (err) {
+      console.error('fetchUserProfile error:', err);
       setUser(null);
       setRole(null);
     }
@@ -71,45 +79,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Safety timeout — never stay loading for more than 10 seconds
+    // Safety timeout — never stay loading for more than 5 seconds
     const timeout = setTimeout(() => {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
       if (mounted && loading) {
         console.warn('Auth timeout — forcing loading to false');
         setLoading(false);
       }
-    }, 10000);
+    }, 5000);
 
     // Get initial session
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (!mounted) return;
+
+        if (error) {
+          console.error('Auth getSession error:', error.message);
+          setLoading(false);
+          return;
+        }
 
         setSession(session);
         if (session?.user) {
           await fetchUserProfile(session.user.id);
         }
       } catch (err) {
-        console.error('Auth session error:', err);
+        console.error('Auth init error:', err);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          initDone.current = true;
+        }
       }
     };
 
     initAuth();
 
-    // Listen for auth changes
+    // Listen for auth changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         if (!mounted) return;
+
+        // Skip if initAuth hasn't completed yet (avoid duplicate fetch)
+        if (!initDone.current && event === 'INITIAL_SESSION') return;
+
         setSession(session);
         if (session?.user) {
           await fetchUserProfile(session.user.id);
         } else {
           setUser(null);
           setRole(null);
+          setStore(null);
+          setStores([]);
         }
+
+        // Ensure loading is false after any auth state change
+        if (loading) setLoading(false);
       }
     );
 
@@ -127,12 +152,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    clearAuthCache(); // Clear cached token
+    clearAuthCache(); // Clear cached token first
     setSession(null);
     setUser(null);
     setRole(null);
     setStore(null);
+    setStores([]);
+    await supabase.auth.signOut();
   };
 
   const switchStore = async (storeId: string) => {

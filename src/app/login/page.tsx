@@ -34,6 +34,11 @@ export default function LoginPage() {
       // Login success — onAuthStateChange in AuthProvider will update session
       // which triggers the useEffect above to redirect to /pos
       // Keep loading=true so user sees "Memproses..." until redirect happens
+
+      // Safety: force redirect after 3 seconds if onAuthStateChange is slow
+      setTimeout(() => {
+        router.replace('/pos');
+      }, 3000);
     } catch {
       setError('Terjadi kesalahan. Coba lagi.');
       setLoading(false);
@@ -82,7 +87,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm relative z-10 animate-fade-in">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Logo" className="w-64 sm:w-72 md:w-80 h-auto mx-auto object-contain animate-fade-in-scale" />
+          <img src="/logo.png" alt="Ajil Plastik" className="w-36 h-36 mx-auto mb-4 object-contain animate-fade-in-scale" />
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Sistem Management</p>
         </div>
 
         {/* Form */}
@@ -111,7 +118,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>© 2026</p>
+        <p className="text-center mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>© 2026 Ajil Plastik</p>
       </div>
     </div>
   );
