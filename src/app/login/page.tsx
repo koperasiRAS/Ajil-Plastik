@@ -1,30 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, session, loading: authLoading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // If already logged in, redirect to POS
+  useEffect(() => {
+    if (!authLoading && session) {
+      router.replace('/pos');
+    }
+  }, [session, authLoading, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const { error } = await login(email, password);
-    if (error) {
-      setError(error);
+    try {
+      const { error } = await login(email, password);
+      if (error) {
+        setError(error);
+        setLoading(false);
+        return;
+      }
+      // Login success — onAuthStateChange in AuthProvider will update session
+      // which triggers the useEffect above to redirect to /pos
+      // Keep loading=true so user sees "Memproses..." until redirect happens
+    } catch {
+      setError('Terjadi kesalahan. Coba lagi.');
       setLoading(false);
-      return;
     }
-
-    router.replace('/pos');
   };
 
   const toggleTheme = () => {
@@ -33,6 +46,18 @@ export default function LoginPage() {
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('pos-theme', next);
   };
+
+  // Show loading if auth is still initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
+        <div className="flex flex-col items-center gap-3 animate-fade-in">
+          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Memuat...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

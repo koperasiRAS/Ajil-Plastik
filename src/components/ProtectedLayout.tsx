@@ -7,21 +7,16 @@ import Sidebar from '@/components/Sidebar';
 
 const OWNER_ROUTES = ['/products', '/inventory', '/employees', '/settings'];
 
-export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
+export default function ProtectedLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { session, role, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     if (loading) return;
 
-    // Prevent infinite redirect loops
-    if (redirecting) return;
-
     if (!session) {
-      setRedirecting(true);
       router.replace('/login');
       return;
     }
@@ -29,14 +24,15 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     if (role === 'employee' && OWNER_ROUTES.includes(pathname)) {
       router.replace('/pos');
     }
-  }, [session, role, loading, pathname, router, redirecting]);
+  }, [session, role, loading, pathname, router]);
 
   // Close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  if (loading || redirecting) {
+  // Show loading spinner while auth is initializing
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
         <div className="flex flex-col items-center gap-3 animate-fade-in">
@@ -47,13 +43,13 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // Not authenticated — redirect is happening, show spinner briefly
   if (!session || !role) {
-    // Instead of returning null (blank screen), show loading while redirect happens
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
         <div className="flex flex-col items-center gap-3 animate-fade-in">
           <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Mengalihkan ke login...</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Mengalihkan...</p>
         </div>
       </div>
     );
