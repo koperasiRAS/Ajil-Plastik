@@ -15,12 +15,12 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: '📊', roles: ['owner'] },
+  { label: 'Dashboard', href: '/dashboard', icon: '📊', roles: ['owner', 'employee'] },
   { label: 'POS Kasir', href: '/pos', icon: '🛒', roles: ['owner', 'employee'] },
   { label: 'Produk', href: '/products', icon: '📦', roles: ['owner'] },
   { label: 'Inventori', href: '/inventory', icon: '📋', roles: ['owner'] },
-  { label: 'Pengeluaran', href: '/expenses', icon: '💸', roles: ['owner'] },
-  { label: 'Laporan', href: '/reports', icon: '📈', roles: ['owner'] },
+  { label: 'Pengeluaran', href: '/expenses', icon: '💸', roles: ['owner', 'employee'] },
+  { label: 'Laporan', href: '/reports', icon: '📈', roles: ['owner', 'employee'] },
   { label: 'Riwayat', href: '/history', icon: '🧾', roles: ['owner', 'employee'] },
   { label: 'Shift', href: '/shifts', icon: '⏰', roles: ['owner', 'employee'] },
   { label: 'Karyawan', href: '/employees', icon: '👥', roles: ['owner'] },

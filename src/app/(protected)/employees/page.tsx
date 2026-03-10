@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { authFetch } from '@/lib/authFetch';
-import { supabase } from '@/lib/supabase';
 import { AppUser } from '@/lib/types';
 
 export default function EmployeesPage() {
@@ -42,8 +41,15 @@ export default function EmployeesPage() {
     setSaving(true); setMessage(null);
     try {
       if (editingUser) {
-        const { error } = await supabase.from('users').update({ name, role }).eq('id', editingUser.id);
-        if (error) throw error;
+        const res = await authFetch('/api/employees', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingUser.id, name, role }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Gagal memperbarui');
+        }
         setMessage({ type: 'success', text: '✓ Data karyawan diperbarui' });
       } else {
         setMessage({ type: 'error', text: 'Untuk menambah karyawan baru, buat akun di Supabase Auth terlebih dahulu, lalu tambahkan row di tabel users.' });

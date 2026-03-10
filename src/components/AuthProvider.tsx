@@ -47,29 +47,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Safety timeout — never stay loading for more than 5 seconds
+    // Safety timeout — never stay loading for more than 10 seconds
     const timeout = setTimeout(() => {
       if (mounted && loading) {
-        console.warn('Auth timeout — setting loading to false');
+        console.warn('Auth timeout — forcing loading to false');
         setLoading(false);
       }
-    }, 5000);
+    }, 10000);
 
     // Get initial session
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => {
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
         if (!mounted) return;
+
         setSession(session);
         if (session?.user) {
-          return fetchUserProfile(session.user.id);
+          await fetchUserProfile(session.user.id);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error('Auth session error:', err);
-      })
-      .finally(() => {
+      } finally {
         if (mounted) setLoading(false);
-      });
+      }
+    };
+
+    initAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

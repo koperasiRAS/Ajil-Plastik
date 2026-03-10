@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 
-const OWNER_ROUTES = ['/dashboard', '/products', '/inventory', '/expenses', '/employees', '/reports', '/settings'];
+const OWNER_ROUTES = ['/products', '/inventory', '/employees', '/settings'];
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const { session, role, loading } = useAuth();
@@ -17,6 +17,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (loading) return;
 
+    // Prevent infinite redirect loops
+    if (redirecting) return;
+
     if (!session) {
       setRedirecting(true);
       router.replace('/login');
@@ -26,7 +29,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     if (role === 'employee' && OWNER_ROUTES.includes(pathname)) {
       router.replace('/pos');
     }
-  }, [session, role, loading, pathname, router]);
+  }, [session, role, loading, pathname, router, redirecting]);
 
   // Close mobile menu on route change
   useEffect(() => {
