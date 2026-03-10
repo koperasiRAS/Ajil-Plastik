@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '@/lib/authFetch';
 import { Transaction } from '@/lib/types';
 
@@ -9,28 +9,50 @@ interface TransactionWithItems extends Transaction {
   transaction_items: { id: string; quantity: number; price: number; products: { name: string } | null; }[];
 }
 
+interface PaginationData {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export default function HistoryPage() {
   const [transactions, setTransactions] = useState<TransactionWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
 
-  const fetchHistory = async () => {
+  const fetchHistory = async (pageNum: number = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set('page', pageNum.toString());
+      params.set('limit', '20');
       if (dateFrom) params.set('from', dateFrom);
       if (dateTo) params.set('to', dateTo);
       const res = await authFetch(`/api/history?${params.toString()}`);
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
-      setTransactions(Array.isArray(data) ? data : []);
+      setTransactions(Array.isArray(data.data) ? data.data : []);
+      setPagination(data.pagination || null);
     } catch { setTransactions([]); }
     setLoading(false);
   };
 
-  useEffect(() => { fetchHistory(); }, [dateFrom, dateTo]);
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+    fetchHistory(1);
+  }, [dateFrom, dateTo]);
+
+  // Handle page change
+  const handlePageChange = useCallback((newPage: number) => {
+    setPage(newPage);
+    fetchHistory(newPage);
+  }, []);
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
   const paymentLabel = (m: string) => m === 'cash' ? '💵 Cash' : m === 'qris' ? '📱 QRIS' : '🏦 Transfer';
@@ -77,10 +99,18 @@ export default function HistoryPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-3 mb-6 animate-fade-in">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 animate-fade-in">
         <div className="stat-card">
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Total Transaksi</p>
-          <p className="text-xl font-bold" style={{ color: 'var(--accent-blue)' }}>{transactions.length}</p>
+          <p className="text-xl font-bold" style={{ color: 'var(--accent-blue)' }}>{pagination?.total || transactions.length}</p>
+        </div>
+        <div className="stat-card">
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Halaman</p>
+          <p className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{pagination?.page || 1} / {pagination?.totalPages || 1}</p>
+        </div>
+        <div className="stat-card">
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Per Halaman</p>
+          <p className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{pagination?.limit || 20}</p>
         </div>
         <div className="stat-card">
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Total Pendapatan</p>
@@ -132,6 +162,31 @@ export default function HistoryPage() {
             </div>
           ))}
           {transactions.length === 0 && <p className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Belum ada riwayat transaksi</p>}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6 animate-fade-in">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page <= 1 || loading}
+            className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
+            style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+          >
+            ← Prev
+          </button>
+          <span className="px-3 py-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+            Halaman {page} dari {pagination.totalPages}
+          </span>
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= pagination.totalPages || loading}
+            className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
+            style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+          >
+            Next →
+          </button>
         </div>
       )}
     </div>

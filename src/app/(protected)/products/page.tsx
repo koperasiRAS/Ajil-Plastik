@@ -26,6 +26,7 @@ export default function ProductsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageObjectUrl, setImageObjectUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Category management
@@ -53,8 +54,13 @@ export default function ProductsPage() {
   useEffect(() => { fetchData(); }, []);
 
   const resetForm = () => {
+    // Clean up object URL to prevent memory leak
+    if (imageObjectUrl) {
+      URL.revokeObjectURL(imageObjectUrl);
+    }
     setName(''); setBarcode(''); setCostPrice(''); setPrice(''); setStock(''); setCategoryId('');
     setImagePreview(null); setImageFile(null);
+    setImageObjectUrl(null);
     setEditingProduct(null); setShowForm(false);
   };
 
@@ -74,8 +80,14 @@ export default function ProductsPage() {
       setMessage({ type: 'error', text: 'Ukuran file maksimal 5MB' });
       return;
     }
+    // Clean up previous object URL to prevent memory leak
+    if (imageObjectUrl) {
+      URL.revokeObjectURL(imageObjectUrl);
+    }
+    const newObjectUrl = URL.createObjectURL(file);
     setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    setImagePreview(newObjectUrl);
+    setImageObjectUrl(newObjectUrl);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

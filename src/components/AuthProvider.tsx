@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { clearAuthCache } from '@/lib/authFetch';
 import { AppUser, UserRole } from '@/lib/types';
 
 interface AuthContextType {
@@ -103,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    clearAuthCache(); // Clear cached token
     setSession(null);
     setUser(null);
     setRole(null);

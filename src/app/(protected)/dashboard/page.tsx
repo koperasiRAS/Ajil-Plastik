@@ -174,7 +174,7 @@ export default function DashboardPage() {
               <div key={txn.id} className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: '1px solid var(--border-default)' }}>
                 <div>
                   <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{txn.users?.name || '-'}</p>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(txn.created_at).toLocaleString('id-ID')}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{txn.created_at ? new Date(txn.created_at).toLocaleString('id-ID') : '-'}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold" style={{ color: 'var(--accent-blue)' }}>{formatRupiah(txn.total)}</p>

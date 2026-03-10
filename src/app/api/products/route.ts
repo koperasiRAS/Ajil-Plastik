@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createServerSupabase();
+  const { searchParams } = new URL(req.url);
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
+  const offset = (page - 1) * limit;
+
   try {
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from('products')
-      .select('*, categories(name)')
-      .order('name');
+      .select('*, categories(name)', { count: 'exact' })
+      .order('name')
+      .range(offset, offset + limit - 1);
+
     if (error) throw error;
-    return NextResponse.json(data || []);
+    return NextResponse.json({
+      data: data || [],
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
+      },
+    });
   } catch (err) {
     console.error('Products API error:', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });

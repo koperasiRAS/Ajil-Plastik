@@ -24,13 +24,21 @@ export default function POSPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [receiptData, setReceiptData] = useState<any>(null);
 
-  // Load everything at once
+  // Load everything in parallel for better performance
   useEffect(() => {
     const init = async () => {
       try {
-        // Load products — try with categories join first, fallback to plain
+        // Load all data in parallel instead of sequential - significantly faster!
+        // Wrap each query in Promise to handle errors gracefully
+        const [prodRes, catRes, shiftRes] = await Promise.all([
+          supabase.from('products').select('*, categories(name)').order('name'),
+          // eslint-disable-next-line no-confusing-void-expression
+          (async () => { try { return await supabase.from('categories').select('*').order('name'); } catch { return { data: [] }; } })(),
+          user ? (async () => { try { return await supabase.from('shifts').select('id').eq('user_id', user.id).eq('status', 'open').limit(1); } catch { return { data: [] }; } })() : Promise.resolve({ data: [] }),
+        ]);
+
+        // Handle products - try with categories join first, fallback to plain
         let productsData: Product[] = [];
-        const prodRes = await supabase.from('products').select('*, categories(name)').order('name');
         if (prodRes.error) {
           // categories table might not exist yet, try without join
           const fallback = await supabase.from('products').select('*').order('name');
@@ -40,22 +48,11 @@ export default function POSPage() {
         }
         setProducts(productsData);
 
-        // Load categories (might not exist)
-        try {
-          const catRes = await supabase.from('categories').select('*').order('name');
-          setCategories((catRes.data as Category[]) || []);
-        } catch { setCategories([]); }
+        // Set categories (might be empty if table doesn't exist)
+        setCategories((catRes.data as Category[]) || []);
 
         // Check for open shift
-        if (user) {
-          try {
-            const { data } = await supabase
-              .from('shifts').select('id').eq('user_id', user.id).eq('status', 'open').limit(1);
-            setHasOpenShift(data && data.length > 0);
-          } catch { setHasOpenShift(false); }
-        } else {
-          setHasOpenShift(false);
-        }
+        setHasOpenShift(shiftRes.data && shiftRes.data.length > 0);
       } catch (err) {
         console.error('POS init error:', err);
         setHasOpenShift(false);
@@ -102,7 +99,9 @@ export default function POSPage() {
     addToCart(data as Product);
   }, [addToCart]);
 
-  useBarcodeScanner({ onScan: handleScan, enabled: hasOpenShift === true });
+  // Enable barcode scanner as soon as possible (not just when shift is open)
+  // User can scan to search products, but checkout requires open shift
+  useBarcodeScanner({ onScan: handleScan, enabled: !loading });
 
   // Filter products
   const filteredProducts = products.filter(p => {
@@ -127,12 +126,31 @@ export default function POSPage() {
   const discountAmount = Number.parseFloat(discount) || 0;
   const total = Math.max(0, subtotal - discountAmount);
 
-  // Checkout
+  // Checkout with proper stock validation
   const handleCheckout = async () => {
     if (cart.length === 0 || !user) return;
     setCheckingOut(true); setMessage(null);
 
     try {
+      // Validate current stock from server before checkout
+      const productIds = cart.map(item => item.product.id);
+      const { data: stockData, error: stockError } = await supabase
+        .from('products')
+        .select('id, stock')
+        .in('id', productIds);
+
+      if (stockError) throw new Error('Gagal validasi stok');
+
+      // Check if any product has insufficient stock
+      const stockMap = new Map(stockData?.map(p => [p.id, p.stock]) || []);
+      for (const item of cart) {
+        const currentStock = stockMap.get(item.product.id) ?? 0;
+        if (currentStock < item.quantity) {
+          throw new Error(`Stok ${item.product.name} tidak cukup! (Tersedia: ${currentStock})`);
+        }
+      }
+
+      // Create transaction
       const { data: txn, error: txnError } = await supabase
         .from('transactions')
         .insert({ user_id: user.id, total, payment_method: paymentMethod, discount: discountAmount })
@@ -177,21 +195,30 @@ export default function POSPage() {
       setCart([]); setDiscount(''); setCashReceived(''); setPaymentMethod('cash');
       setCheckingOut(false);
 
-      // Update stock in DB in PARALLEL (background, non-blocking)
-      Promise.all(currentCart.map(item =>
+      // Update stock in DB - wait for it to complete to ensure data consistency
+      // Use Promise.allSettled to not fail if one update fails
+      const stockUpdateResults = await Promise.allSettled(currentCart.map(item =>
         Promise.all([
-          supabase.from('products').update({ stock: item.product.stock - item.quantity }).eq('id', item.product.id),
+          supabase.from('products').update({ stock: (stockMap.get(item.product.id) ?? item.product.stock) - item.quantity }).eq('id', item.product.id),
           supabase.from('stock_logs').insert({
             product_id: item.product.id, type: 'sale', quantity: -item.quantity,
             note: `Penjualan - ${txn.id.slice(0, 8)}`,
           }),
         ])
-      )).catch(err => console.error('Background stock update error:', err));
+      ));
+
+      // Log any failures but don't block UI
+      stockUpdateResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`Failed to update stock for ${currentCart[index].product.name}:`, result.reason);
+        }
+      });
 
       return; // Exit early — UI already updated
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Checkout gagal' });
-    } finally { setCheckingOut(false); }
+      setCheckingOut(false);
+    }
   };
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;

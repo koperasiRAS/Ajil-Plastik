@@ -7,13 +7,16 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const method = searchParams.get('method');
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Max 100 per page
+  const offset = (page - 1) * limit;
 
   try {
     let query = supabase
       .from('transactions')
-      .select('id, total, created_at, payment_method, discount, users(name), transaction_items(quantity, price, products(name))')
+      .select('id, total, created_at, payment_method, discount, users(name), transaction_items(quantity, price, products(name))', { count: 'exact' })
       .order('created_at', { ascending: false })
-      .limit(100);
+      .range(offset, offset + limit - 1);
 
     if (from) query = query.gte('created_at', new Date(from).toISOString());
     if (to) {
@@ -23,9 +26,18 @@ export async function GET(req: NextRequest) {
     }
     if (method && method !== 'all') query = query.eq('payment_method', method);
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) throw error;
-    return NextResponse.json(data || []);
+
+    return NextResponse.json({
+      data: data || [],
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
+      },
+    });
   } catch (err) {
     console.error('History API error:', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });

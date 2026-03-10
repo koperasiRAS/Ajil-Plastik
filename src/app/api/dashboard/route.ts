@@ -7,45 +7,49 @@ export async function GET() {
   try {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
+    const todayDate = today.toISOString().split('T')[0];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Core queries
-    const [txnRes, productsRes, lowStockRes, recentRes] = await Promise.all([
+    // ALL queries in parallel for maximum performance!
+    const [
+      txnRes,
+      productsRes,
+      lowStockRes,
+      recentRes,
+      expensesRes,
+      cogsRes,
+      topProductsRes
+    ] = await Promise.all([
+      // Core queries (parallel)
       supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO),
       supabase.from('products').select('id', { count: 'exact', head: true }),
       supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
       supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(5),
+      // Additional queries (parallel)
+      supabase.from('expenses').select('amount').gte('date', todayDate),
+      supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO),
+      supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo),
     ]);
 
-    // Expenses
+    // Process expenses
     let todayExpenses = 0;
     try {
-      const { data } = await supabase.from('expenses').select('amount').gte('date', today.toISOString().split('T')[0]);
-      todayExpenses = (data || []).reduce((s: number, e: { amount: number }) => s + Number(e.amount), 0);
+      todayExpenses = (expensesRes.data || []).reduce((s: number, e: { amount: number }) => s + Number(e.amount), 0);
     } catch { /* */ }
 
-    // COGS
+    // Process COGS
     let todayCOGS = 0;
     try {
-      const { data } = await supabase
-        .from('transaction_items')
-        .select('quantity, cost_price, transactions!inner(created_at)')
-        .gte('transactions.created_at', todayISO);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      todayCOGS = (data || []).reduce((sum: number, item: any) => sum + (Number(item.cost_price || 0) * Number(item.quantity)), 0);
+      todayCOGS = (cogsRes.data || []).reduce((sum: number, item: any) => sum + (Number(item.cost_price || 0) * Number(item.quantity)), 0);
     } catch { /* */ }
 
-    // Top products (7 days)
+    // Process top products
     const topProducts: { name: string; totalSold: number }[] = [];
     try {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
-        .from('transaction_items')
-        .select('quantity, products(name), transactions!inner(created_at)')
-        .gte('transactions.created_at', sevenDaysAgo);
-
       const productMap = new Map<string, number>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (data || []).forEach((item: any) => {
+      (topProductsRes.data || []).forEach((item: any) => {
         const name = item.products?.name || 'Unknown';
         productMap.set(name, (productMap.get(name) || 0) + Number(item.quantity));
       });
