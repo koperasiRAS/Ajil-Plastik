@@ -168,7 +168,7 @@ export default function POSPage() {
       // Show receipt IMMEDIATELY (optimistic — don't wait for stock updates)
       const cashReceivedNum = Number.parseFloat(cashReceived) || 0;
       setReceiptData({
-        storeName: 'Ajil Plastik',
+        storeName: 'Toko Plastik',
         storeAddress: 'Jl. Boulevard Gran City,\nJatimulya, Kec. Ci\nKota Depok, Jawa',
         storePhone: 'Telp: 628551218',
         date: new Date(),
@@ -426,7 +426,7 @@ export default function POSPage() {
             <div className="p-3 rounded-lg text-xs animate-fade-in" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-default)' }}>
               <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>🏦 Rekening Transfer</p>
               <p style={{ color: 'var(--accent-blue)' }}>BCA: <span className="font-mono font-bold">6830841685</span></p>
-              <p className="mt-0.5" style={{ color: 'var(--text-muted)' }}>a.n Ajil Plastik</p>
+              <p className="mt-0.5" style={{ color: 'var(--text-muted)' }}>a.n Toko Plastik</p>
             </div>
           )}
           {paymentMethod === 'qris' && (

@@ -65,11 +65,7 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
       >
         {!collapsed && (
           <div className="animate-fade-in flex items-center gap-2">
-            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
-            <div>
-              <h1 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</h1>
-              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Management System</p>
-            </div>
+            <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain" />
             <button
               onClick={() => setCollapsed(!collapsed)}
               className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110 ml-auto"

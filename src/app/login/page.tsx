@@ -81,10 +81,8 @@ export default function LoginPage() {
 
       <div className="w-full max-w-sm relative z-10 animate-fade-in">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="Ajil Plastik" className="w-36 h-36 mx-auto mb-4 object-contain animate-fade-in-scale" />
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Sistem Management</p>
+        <div className="text-center mb-6">
+          <img src="/logo.png" alt="Logo" className="w-40 h-40 sm:w-48 sm:h-48 mx-auto object-contain animate-fade-in-scale" />
         </div>
 
         {/* Form */}
@@ -113,7 +111,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>© 2026 Ajil Plastik</p>
+        <p className="text-center mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>© 2026</p>
       </div>
     </div>
   );

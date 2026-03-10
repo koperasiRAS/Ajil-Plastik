@@ -18,8 +18,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Ajil Plastik",
-  description: "Sistem Management Ajil Plastik",
+  title: "Toko Plastik",
+  description: "Sistem Management Toko Plastik",
 };
 
 export default function RootLayout({
