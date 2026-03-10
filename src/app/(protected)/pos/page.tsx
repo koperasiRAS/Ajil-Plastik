@@ -148,15 +148,7 @@ export default function POSPage() {
       const { error: itemsError } = await supabase.from('transaction_items').insert(items);
       if (itemsError) throw new Error('Gagal menyimpan item');
 
-      for (const item of cart) {
-        await supabase.from('products').update({ stock: item.product.stock - item.quantity }).eq('id', item.product.id);
-        await supabase.from('stock_logs').insert({
-          product_id: item.product.id, type: 'sale', quantity: -item.quantity,
-          note: `Penjualan - ${txn.id.slice(0, 8)}`,
-        });
-      }
-
-      // Show receipt
+      // Show receipt IMMEDIATELY (optimistic — don't wait for stock updates)
       const cashReceivedNum = Number.parseFloat(cashReceived) || 0;
       setReceiptData({
         storeName: 'Warung Sembako by RAS',
@@ -174,14 +166,29 @@ export default function POSPage() {
         change: paymentMethod === 'cash' ? Math.max(0, cashReceivedNum - total) : 0,
       });
 
-      // Update local product stock
+      // Update local product stock IMMEDIATELY (optimistic)
       setProducts(prev => prev.map(p => {
         const cartItem = cart.find(c => c.product.id === p.id);
         if (cartItem) return { ...p, stock: p.stock - cartItem.quantity };
         return p;
       }));
 
+      const currentCart = [...cart];
       setCart([]); setDiscount(''); setCashReceived(''); setPaymentMethod('cash');
+      setCheckingOut(false);
+
+      // Update stock in DB in PARALLEL (background, non-blocking)
+      Promise.all(currentCart.map(item =>
+        Promise.all([
+          supabase.from('products').update({ stock: item.product.stock - item.quantity }).eq('id', item.product.id),
+          supabase.from('stock_logs').insert({
+            product_id: item.product.id, type: 'sale', quantity: -item.quantity,
+            note: `Penjualan - ${txn.id.slice(0, 8)}`,
+          }),
+        ])
+      )).catch(err => console.error('Background stock update error:', err));
+
+      return; // Exit early — UI already updated
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Checkout gagal' });
     } finally { setCheckingOut(false); }
