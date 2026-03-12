@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 
 interface ReceiptData {
   storeName: string;
@@ -20,6 +20,19 @@ interface ReceiptData {
 
 export default function ReceiptPrint({ data, onClose }: Readonly<{ data: ReceiptData; onClose: () => void }>) {
   const receiptRef = useRef<HTMLDivElement>(null);
+  const [showModal, setShowModal] = useState(false);
+
+  // Prevent flash and ensure modal stays open
+  useEffect(() => {
+    // Small delay to ensure render is complete
+    const timer = setTimeout(() => setShowModal(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Don't render until showModal is true (prevents flickering)
+  if (!showModal) {
+    return null;
+  }
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
   const paymentLabel = (m: string) => m === 'cash' ? 'Tunai' : m === 'qris' ? 'QRIS' : 'Transfer';

@@ -6,6 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { Product, CartItem, Category } from '@/lib/types';
 import ReceiptPrint from '@/components/ReceiptPrint';
+import { queryClient } from '@/lib/queryClient';
 
 export default function POSPage() {
   const { user } = useAuth();
@@ -212,6 +213,15 @@ export default function POSPage() {
           console.error(`Failed to update stock for ${currentCart[index].product.name}:`, result.reason);
         }
       });
+
+      // Fix data delay: invalidate queries to refresh dashboard and other pages immediately
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['products-page'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock-count'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['history'] });
 
       return; // Exit early — UI already updated
     } catch (err) {
