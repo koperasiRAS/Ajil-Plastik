@@ -41,6 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
+    let userData: AppUser | null = null;
+    let userRole: UserRole | null = null;
+
     try {
       const { data, error } = await supabase
         .from('users')
@@ -49,41 +52,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (error || !data) {
-        console.error('Failed to fetch user profile:', error?.message);
-        setUser(null);
-        setRole(null);
-        return;
-      }
+        console.warn('User profile not found in users table, attempting to create...');
 
-      setUser(data as AppUser);
-      setRole(data.role as UserRole);
+        // Try to get user email from auth
+        const { data: { user: authUser } } = await supabase.auth.getUser(userId);
 
-      // Fetch stores for multi-branch support
-      try {
-        const { data: storesData } = await supabase
-          .from('stores')
-          .select('*')
-          .eq('is_active', true)
-          .order('name');
+        if (authUser?.email) {
+          // Create user record in users table
+          const { data: newUser, error: createError } = await supabase
+            .from('users')
+            .insert({
+              id: userId,
+              email: authUser.email,
+              name: authUser.email.split('@')[0],
+              role: 'owner' // Default role
+            })
+            .select()
+            .single();
 
-        if (storesData && storesData.length > 0) {
-          setStores(storesData as Store[]);
-          // Set current store based on user data or first store
-          if (data.store_id) {
-            const currentStore = storesData.find(s => s.id === data.store_id);
-            if (currentStore) setStore(currentStore as Store);
+          if (!createError && newUser) {
+            console.log('Created user profile:', newUser);
+            userData = newUser as AppUser;
+            userRole = newUser.role as UserRole;
           } else {
-            setStore(storesData[0] as Store);
+            console.error('Failed to create user profile:', createError?.message);
           }
         }
-      } catch (storeErr) {
-        console.error('Failed to fetch stores:', storeErr);
-        // Non-critical — continue without stores
+      } else {
+        userData = data as AppUser;
+        userRole = data.role as UserRole;
       }
+
+      setUser(userData);
+      setRole(userRole);
     } catch (err) {
       console.error('fetchUserProfile error:', err);
       setUser(null);
       setRole(null);
+    }
+
+    // Fetch stores for multi-branch support (always fetch, regardless of user existence)
+    try {
+      const { data: storesData } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (storesData && storesData.length > 0) {
+        setStores(storesData as Store[]);
+        // Set current store based on user data or first store
+        if (userData?.store_id) {
+          const currentStore = storesData.find(s => s.id === userData.store_id);
+          if (currentStore) setStore(currentStore as Store);
+        } else {
+          setStore(storesData[0] as Store);
+        }
+      }
+    } catch (storeErr) {
+      console.error('Failed to fetch stores:', storeErr);
     }
   };
 
