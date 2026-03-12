@@ -310,9 +310,9 @@ export default function POSPage() {
                 style={{ cursor: product.stock > 0 ? 'pointer' : 'not-allowed' }}
               >
                 {/* Product Image */}
-                <div className="w-full h-24 overflow-hidden relative" style={{ background: 'var(--bg-input)' }}>
+                <div className="w-full aspect-square overflow-hidden relative" style={{ background: 'var(--bg-input)' }}>
                   {product.image_url ? (
-                    <img src={product.image_url} alt={product.name}
+                    <img src={product.image_url} alt={product.name} loading="lazy"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
@@ -372,7 +372,7 @@ export default function POSPage() {
                 {/* Thumbnail */}
                 <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'var(--bg-input)' }}>
                   {item.product.image_url ? (
-                    <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
+                    <img src={item.product.image_url} alt="" loading="lazy" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
                   )}

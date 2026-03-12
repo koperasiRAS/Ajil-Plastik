@@ -197,7 +197,7 @@ export default function ProductsPage() {
                   style={{ background: 'var(--bg-input)', border: '2px dashed var(--border-hover)' }}
                 >
                   {imagePreview ? (
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    <img src={imagePreview} alt="Preview" loading="lazy" className="w-full h-full object-cover" />
                   ) : (
                     <div className="text-center">
                       <span className="text-2xl">📷</span>
@@ -260,9 +260,9 @@ export default function ProductsPage() {
                   <td>
                     <div className="flex items-center gap-3">
                       {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
+                        <img src={product.image_url} alt={product.name} loading="lazy" className="w-12 h-12 rounded-lg object-cover" />
                       ) : (
-                        <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ background: 'var(--bg-input)' }}>📦</div>
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center text-lg" style={{ background: 'var(--bg-input)' }}>📦</div>
                       )}
                       <span style={{ color: 'var(--text-primary)' }}>{product.name}</span>
                     </div>
