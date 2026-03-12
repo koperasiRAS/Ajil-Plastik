@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useMemo, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { clearAuthCache } from '@/lib/authFetch';
 import { AppUser, UserRole, Store } from '@/lib/types';
 
@@ -13,6 +13,7 @@ interface AuthContextType {
   store: Store | null;
   stores: Store[];
   loading: boolean;
+  isConfigured: boolean;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
   setStore: (storeId: string) => Promise<void>;
@@ -27,7 +28,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [store, setStore] = useState<Store | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState(false);
   const initDone = useRef(false);
+
+  // Check if Supabase is configured on mount
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      console.error('Supabase is not configured. Please add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to environment variables.');
+      setConfigError(true);
+      setLoading(false);
+    }
+  }, []);
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -77,15 +88,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Don't initialize if Supabase is not configured
+    if (configError) return;
+
     let mounted = true;
 
-    // Safety timeout — never stay loading for more than 5 seconds
+    // Safety timeout — never stay loading for more than 10 seconds
     const timeout = setTimeout(() => {
       if (mounted && loading) {
         console.warn('Auth timeout — forcing loading to false');
         setLoading(false);
       }
-    }, 5000);
+    }, 10000);
 
     // Get initial session
     const initAuth = async () => {
@@ -143,9 +157,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeout);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [configError]);
 
   const login = async (email: string, password: string) => {
+    if (configError) {
+      return { error: 'Aplikasi belum dikonfigurasi dengan benar. Hubungi administrator.' };
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
     return { error: null };
@@ -165,13 +182,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const selectedStore = stores.find(s => s.id === storeId);
     if (selectedStore) {
       setStore(selectedStore);
-      localStorage.setItem('selected_store_id', storeId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('selected_store_id', storeId);
+      }
     }
   };
 
   const contextValue = useMemo(() => ({
-    session, user, role, store, stores, loading, login, logout, setStore: switchStore
-  }), [session, user, role, store, stores, loading]);
+    session, user, role, store, stores, loading, isConfigured: !configError, login, logout, setStore: switchStore
+  }), [session, user, role, store, stores, loading, configError]);
+
+  // If Supabase is not configured, show error
+  if (configError) {
+    return (
+      <AuthContext.Provider value={{
+        session: null, user: null, role: null, store: null, stores: [],
+        loading: false, isConfigured: false, login, logout, setStore: switchStore
+      }}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
 
   return (
     <AuthContext.Provider value={contextValue}>
