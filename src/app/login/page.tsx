@@ -5,12 +5,21 @@ import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const { login, session, loading: authLoading } = useAuth();
+  const { login, signup, session, loading: authLoading } = useAuth();
   const router = useRouter();
+
+  // Tab: 'login' or 'register'
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+
+  // Form fields
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'owner' | 'employee'>('owner');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
 
   // If already logged in, redirect to POS
   useEffect(() => {
@@ -19,9 +28,10 @@ export default function LoginPage() {
     }
   }, [session, authLoading, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     setLoading(true);
 
     try {
@@ -32,14 +42,34 @@ export default function LoginPage() {
         return;
       }
       // Login success — onAuthStateChange in AuthProvider will update session
-      // which triggers the useEffect above to redirect to /pos
-      // Keep loading=true so user sees "Memproses..." until redirect happens
-
-      // Safety: force redirect after 3 seconds if onAuthStateChange is slow
       setTimeout(() => {
         router.replace('/pos');
       }, 3000);
     } catch {
+      setError('Terjadi kesalahan. Coba lagi.');
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    setLoading(true);
+
+    try {
+      const { error } = await signup(email, password, name, role);
+      if (error) {
+        setError(error);
+        setLoading(false);
+        return;
+      }
+      setSuccessMsg('Akun berhasil dibuat! Silakan login dengan email dan password Anda.');
+      setActiveTab('login');
+      setEmail(email);
+      setPassword('');
+      setLoading(false);
+    } catch (err) {
       setError('Terjadi kesalahan. Coba lagi.');
       setLoading(false);
     }
@@ -86,39 +116,125 @@ export default function LoginPage() {
 
       <div className="w-full max-w-sm relative z-10 animate-fade-in">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <img src="/logo.png" alt="Ajil Plastik" className="w-36 h-36 mx-auto mb-4 object-contain animate-fade-in-scale" />
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Sistem Management</p>
+        <div className="text-center mb-6">
+          <img src="/logo.png" alt="Ajil Plastik" className="w-28 h-28 mx-auto mb-3 object-contain animate-fade-in-scale" />
+          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</h1>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Sistem Management</p>
+        </div>
+
+        {/* Tab */}
+        <div className="flex mb-4 glass-card p-1 rounded-lg" style={{ background: 'var(--bg-card)' }}>
+          <button
+            onClick={() => { setActiveTab('login'); setError(''); setSuccessMsg(''); }}
+            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'login' ? 'shadow-sm' : ''}`}
+            style={activeTab === 'login'
+              ? { background: 'var(--accent-teal)', color: 'white' }
+              : { background: 'transparent', color: 'var(--text-muted)' }}
+          >
+            Masuk
+          </button>
+          <button
+            onClick={() => { setActiveTab('register'); setError(''); setSuccessMsg(''); }}
+            className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'register' ? 'shadow-sm' : ''}`}
+            style={activeTab === 'register'
+              ? { background: 'var(--accent-teal)', color: 'white' }
+              : { background: 'transparent', color: 'var(--text-muted)' }}
+          >
+            Daftar
+          </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="glass-card p-6 space-y-4" style={{ boxShadow: 'var(--shadow-lg)' }}>
-          {error && <div className="alert-error">{error}</div>}
+        <div className="glass-card p-5" style={{ boxShadow: 'var(--shadow-lg)' }}>
+          {error && <div className="alert-error mb-4">{error}</div>}
+          {successMsg && <div className="alert-success mb-4">{successMsg}</div>}
 
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="input-field" placeholder="email@contoh.com" />
+          {activeTab === 'register' && (
+            <div className="mb-3">
+              <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nama Lengkap</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                required
+                className="input-field"
+                placeholder="Nama Anda"
+              />
+            </div>
+          )}
+
+          <div className="mb-3">
+            <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              className="input-field"
+              placeholder="email@contoh.com"
+            />
           </div>
 
-          <div>
-            <label className="block text-sm mb-1.5" style={{ color: 'var(--text-secondary)' }}>Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="input-field" placeholder="••••••••" />
+          <div className="mb-3">
+            <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              className="input-field"
+              placeholder="••••••••"
+            />
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base font-semibold" style={{ borderRadius: '10px' }}>
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Memproses...
-              </span>
-            ) : 'Masuk'}
-          </button>
-        </form>
+          {activeTab === 'register' && (
+            <div className="mb-4">
+              <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>Role</label>
+              <select
+                value={role}
+                onChange={e => setRole(e.target.value as 'owner' | 'employee')}
+                className="input-field"
+              >
+                <option value="owner">Owner (Pemilik)</option>
+                <option value="employee">Employee (Karyawan)</option>
+              </select>
+            </div>
+          )}
 
-        <p className="text-center mt-6 text-xs" style={{ color: 'var(--text-muted)' }}>© 2026 Ajil Plastik</p>
+          {activeTab === 'login' ? (
+            <button
+              type="button"
+              onClick={handleLogin}
+              disabled={loading}
+              className="btn-primary w-full py-2.5 text-sm font-semibold"
+              style={{ borderRadius: '8px' }}
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Memproses...
+                </span>
+              ) : 'Masuk'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleRegister}
+              disabled={loading}
+              className="btn-primary w-full py-2.5 text-sm font-semibold"
+              style={{ borderRadius: '8px' }}
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Mendaftarkan...
+                </span>
+              ) : 'Daftar'}
+            </button>
+          )}
+        </div>
+
+        <p className="text-center mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>© 2026 Ajil Plastik</p>
       </div>
     </div>
   );

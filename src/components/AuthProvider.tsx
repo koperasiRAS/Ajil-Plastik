@@ -15,6 +15,7 @@ interface AuthContextType {
   loading: boolean;
   isConfigured: boolean;
   login: (email: string, password: string) => Promise<{ error: string | null }>;
+  signup: (email: string, password: string, name: string, role: UserRole) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
   setStore: (storeId: string) => Promise<void>;
 }
@@ -195,6 +196,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
+  const signup = async (email: string, password: string, name: string, role: UserRole) => {
+    if (configError) {
+      return { error: 'Aplikasi belum dikonfigurasi dengan benar. Hubungi administrator.' };
+    }
+
+    try {
+      // Sign up user in Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            role,
+          },
+        },
+      });
+
+      if (error) return { error: error.message };
+
+      // Check if user was created
+      if (!data.user) {
+        return { error: 'Gagal membuat akun. Silakan coba lagi.' };
+      }
+
+      // Create user record in users table
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: data.user.id,
+          email,
+          name,
+          role,
+        });
+
+      if (insertError) {
+        console.error('Failed to create user record:', insertError);
+        // Continue anyway - the trigger might have created it
+      }
+
+      return { error: null };
+    } catch (err) {
+      console.error('Signup error:', err);
+      return { error: 'Terjadi kesalahan. Silakan coba lagi.' };
+    }
+  };
+
   const logout = async () => {
     clearAuthCache(); // Clear cached token first
     setSession(null);
@@ -216,7 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const contextValue = useMemo(() => ({
-    session, user, role, store, stores, loading, isConfigured: !configError, login, logout, setStore: switchStore
+    session, user, role, store, stores, loading, isConfigured: !configError, login, signup, logout, setStore: switchStore
   }), [session, user, role, store, stores, loading, configError]);
 
   // If Supabase is not configured, show error
@@ -224,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (
       <AuthContext.Provider value={{
         session: null, user: null, role: null, store: null, stores: [],
-        loading: false, isConfigured: false, login, logout, setStore: switchStore
+        loading: false, isConfigured: false, login, signup, logout, setStore: switchStore
       }}>
         {children}
       </AuthContext.Provider>
