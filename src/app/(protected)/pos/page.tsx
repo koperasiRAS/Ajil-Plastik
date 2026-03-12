@@ -310,7 +310,7 @@ export default function POSPage() {
                 style={{ cursor: product.stock > 0 ? 'pointer' : 'not-allowed' }}
               >
                 {/* Product Image */}
-                <div className="w-full aspect-square overflow-hidden relative" style={{ background: 'var(--bg-input)' }}>
+                <div className="product-image-container relative" style={{ background: 'var(--bg-input)' }}>
                   {product.image_url ? (
                     <img src={product.image_url} alt={product.name} loading="lazy"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />

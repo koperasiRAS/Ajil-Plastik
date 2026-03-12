@@ -193,7 +193,7 @@ export default function ProductsPage() {
               <div className="flex items-center gap-4">
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-28 h-28 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 overflow-hidden"
+                  className="w-32 h-32 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 overflow-hidden"
                   style={{ background: 'var(--bg-input)', border: '2px dashed var(--border-hover)' }}
                 >
                   {imagePreview ? (

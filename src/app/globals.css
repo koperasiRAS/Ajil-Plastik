@@ -195,7 +195,29 @@ input, textarea, select, button {
    Custom Components
    ============================================= */
 
-/* Glass card effect */
+/* Aspect ratio utilities for images */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+/* Product image container - ensures square images */
+.product-image-container {
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+
+.product-image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-image-container:hover img {
+  transform: scale(1.05);
+}
+
+/* Improved glass card effect */
 .glass-card {
   background: var(--bg-card);
   border: 1px solid var(--border-default);
