@@ -21,6 +21,19 @@ const { url, key, isConfigured } = getSupabaseEnv();
 // Create client only once - using singleton pattern
 let supabaseInstance: SupabaseClient | null = null;
 
+// Custom storage that handles SSR gracefully
+const getStorage = () => {
+  if (typeof window === 'undefined') {
+    // Return a no-op storage on server
+    return {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+  }
+  return window.localStorage;
+};
+
 export const supabase: SupabaseClient = (() => {
   if (supabaseInstance) return supabaseInstance;
 
@@ -35,7 +48,7 @@ export const supabase: SupabaseClient = (() => {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       storageKey: "pos-warung-auth",
-      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      storage: getStorage(),
     },
   });
 

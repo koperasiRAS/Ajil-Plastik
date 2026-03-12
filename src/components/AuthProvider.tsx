@@ -121,17 +121,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
-    // Safety timeout — never stay loading for more than 10 seconds
+    // Safety timeout — never stay loading for more than 5 seconds (faster!)
     const timeout = setTimeout(() => {
       if (mounted && loading) {
         console.warn('Auth timeout — forcing loading to false');
         setLoading(false);
       }
-    }, 10000);
+    }, 5000);
 
     // Get initial session
     const initAuth = async () => {
       try {
+        // Use getSession instead of getSession for faster initial check
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!mounted) return;
 

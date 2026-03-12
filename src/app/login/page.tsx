@@ -32,9 +32,8 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      setTimeout(() => {
-        router.replace('/pos');
-      }, 3000);
+      // Redirect immediately after successful login
+      router.replace('/pos');
     } catch {
       setError('Terjadi kesalahan. Coba lagi.');
       setLoading(false);
