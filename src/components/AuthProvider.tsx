@@ -108,9 +108,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     // Safety timeout — never stay loading for more than 5 seconds (faster!)
-    const timeout = setTimeout(() => {
+    const timeout = setTimeout(async () => {
       if (mounted && loading) {
-        console.warn('Auth timeout — forcing loading to false');
+        console.warn('Auth timeout — forcing loading to false and clearing stale session');
+        // If we timed out, the session is likely stale — clear it
+        try {
+          await supabase.auth.signOut();
+        } catch { /* ignore */ }
+        setSession(null);
+        setUser(null);
+        setRole(null);
         setLoading(false);
       }
     }, 5000);
@@ -118,12 +125,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Get initial session
     const initAuth = async () => {
       try {
-        // Use getSession instead of getSession for faster initial check
+        // Use getSession for faster initial check
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!mounted) return;
 
         if (error) {
           console.error('Auth getSession error:', error.message);
+          // Clear potentially corrupt session
+          try { await supabase.auth.signOut(); } catch { /* ignore */ }
           setLoading(false);
           return;
         }
@@ -131,9 +140,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         if (session?.user) {
           await fetchUserProfile(session.user.id);
+          
+          // If profile fetch resulted in no user data, the session is stale/invalid
+          // Force sign out to clear the bad token from localStorage
+          if (!mounted) return;
+          // We need to check user state after fetchUserProfile completes
+          // Use a microtask to read the latest state
+          setTimeout(() => {
+            if (mounted && session && !user) {
+              console.warn('Session exists but user profile not found — signing out stale session');
+              supabase.auth.signOut().catch(() => {});
+              setSession(null);
+            }
+          }, 500);
         }
       } catch (err) {
         console.error('Auth init error:', err);
+        // On any error, clean up stale state
+        try { await supabase.auth.signOut(); } catch { /* ignore */ }
       } finally {
         if (mounted) {
           setLoading(false);

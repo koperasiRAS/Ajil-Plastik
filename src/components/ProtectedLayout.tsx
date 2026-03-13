@@ -2,10 +2,37 @@
 
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 
 const OWNER_ROUTES = ['/products', '/inventory', '/employees', '/settings'];
+
+// Guard component that auto-redirects to login if stuck on "Mengalihkan..." for too long
+function StaleSessionGuard() {
+  const router = useRouter();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // If we're still showing "Mengalihkan..." after 3 seconds, force redirect to login
+    timerRef.current = setTimeout(() => {
+      console.warn('StaleSessionGuard: stuck on Mengalihkan for 3s, forcing redirect to /login');
+      router.replace('/login');
+    }, 3000);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [router]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
+      <div className="flex flex-col items-center gap-3 animate-fade-in">
+        <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Mengalihkan...</p>
+      </div>
+    </div>
+  );
+}
 
 export default function ProtectedLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { session, role, loading } = useAuth();
@@ -45,15 +72,9 @@ export default function ProtectedLayout({ children }: Readonly<{ children: React
   }
 
   // Not authenticated — redirect is happening, show spinner briefly
+  // Add safety: if stuck here for 3s, force redirect to login
   if (!session || !role) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-        <div className="flex flex-col items-center gap-3 animate-fade-in">
-          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Mengalihkan...</p>
-        </div>
-      </div>
-    );
+    return <StaleSessionGuard />;
   }
 
   return (

@@ -15,6 +15,7 @@ export default function ProductsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [filterCategory, setFilterCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
 
   const [name, setName] = useState('');
   const [barcode, setBarcode] = useState('');
@@ -114,11 +115,28 @@ export default function ProductsPage() {
     } finally { setSaving(false); setUploading(false); }
   };
 
-  const deleteProduct = async (id: string) => {
-    if (!confirm('Hapus produk ini?')) return;
-    const { error } = await supabase.from('products').delete().eq('id', id);
-    if (error) setMessage({ type: 'error', text: 'Gagal menghapus produk' });
-    else { setMessage({ type: 'success', text: '✓ Produk dihapus' }); invalidate(); }
+  const archiveProduct = async (id: string, productName: string) => {
+    if (!confirm(`Arsipkan produk "${productName}"? Produk akan disembunyikan dari POS tapi riwayat transaksi tetap aman.`)) return;
+    const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
+    if (error) {
+      // Fallback: if is_active column doesn't exist yet, show a message
+      setMessage({ type: 'error', text: 'Gagal mengarsipkan. Pastikan kolom is_active sudah ada di tabel products.' });
+    } else {
+      setMessage({ type: 'success', text: `✓ Produk "${productName}" diarsipkan` });
+      invalidate();
+      // Also invalidate POS product cache
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    }
+  };
+
+  const restoreProduct = async (id: string, productName: string) => {
+    const { error } = await supabase.from('products').update({ is_active: true }).eq('id', id);
+    if (error) setMessage({ type: 'error', text: 'Gagal memulihkan produk' });
+    else {
+      setMessage({ type: 'success', text: `✓ Produk "${productName}" dipulihkan` });
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    }
   };
 
   const addCategory = async () => {
@@ -131,6 +149,10 @@ export default function ProductsPage() {
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
   const filtered = products.filter(p => {
+    // Filter by archive status
+    const isActive = (p as any).is_active !== false; // default true if column missing
+    if (!showArchived && !isActive) return false;
+    if (showArchived && isActive) return false;
     if (filterCategory && p.category_id !== filterCategory) return false;
     if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase()) && !p.barcode.includes(searchQuery)) return false;
     return true;
@@ -180,6 +202,17 @@ export default function ProductsPage() {
           <option value="">Semua Kategori</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        <button
+          onClick={() => setShowArchived(!showArchived)}
+          className="px-3 py-2 rounded-lg text-sm transition-all hover:scale-105 whitespace-nowrap"
+          style={{
+            background: showArchived ? 'var(--accent-red)' : 'var(--bg-card)',
+            color: showArchived ? 'white' : 'var(--text-secondary)',
+            border: '1px solid ' + (showArchived ? 'var(--accent-red)' : 'var(--border-default)'),
+          }}
+        >
+          {showArchived ? '📦 Arsip' : '📦 Lihat Arsip'}
+        </button>
       </div>
 
       {showForm && (
@@ -281,7 +314,11 @@ export default function ProductsPage() {
                   </td>
                   <td className="text-right">
                     <button onClick={() => openEditForm(product)} className="text-xs mr-2 px-2 py-1 rounded transition-all hover:scale-110" style={{ color: 'var(--accent-blue)' }}>Edit</button>
-                    <button onClick={() => deleteProduct(product.id)} className="text-xs px-2 py-1 rounded transition-all hover:scale-110" style={{ color: 'var(--accent-red)' }}>Hapus</button>
+                    {showArchived ? (
+                      <button onClick={() => restoreProduct(product.id, product.name)} className="text-xs px-2 py-1 rounded transition-all hover:scale-110" style={{ color: 'var(--accent-green)' }}>Pulihkan</button>
+                    ) : (
+                      <button onClick={() => archiveProduct(product.id, product.name)} className="text-xs px-2 py-1 rounded transition-all hover:scale-110" style={{ color: 'var(--accent-red)' }}>Arsipkan</button>
+                    )}
                   </td>
                 </tr>
               )})}

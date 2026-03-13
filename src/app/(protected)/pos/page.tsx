@@ -8,8 +8,9 @@ export default async function POSPage() {
 
   // Load products and categories in parallel directly on the server
   // This bypasses the need for the browser to run effect hooks and loading spinners
+  // Only fetch active products (is_active=true) for POS — archived products are hidden
   const [prodRes, catRes] = await Promise.all([
-    supabase.from('products').select('*, categories(name)').order('name'),
+    supabase.from('products').select('*, categories(name)').neq('is_active', false).order('name'),
     supabase.from('categories').select('*').order('name')
   ]);
 
