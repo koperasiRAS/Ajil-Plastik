@@ -42,24 +42,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
-    let userData: AppUser | null = null;
-    let userRole: UserRole | null = null;
-
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      // Run users and stores queries in parallel for better performance
+      const [userRes, storesRes] = await Promise.all([
+        supabase.from('users').select('*').eq('id', userId).single(),
+        supabase.from('stores').select('*').eq('is_active', true).order('name')
+      ]);
 
-      if (error || !data) {
+      let userData: AppUser | null = null;
+      let userRole: UserRole | null = null;
+
+      if (userRes.error || !userRes.data) {
         console.warn('User profile not found in users table, attempting to create...');
-
-        // Try to get user email from auth
         const { data: { user: authUser } } = await supabase.auth.getUser(userId);
 
         if (authUser?.email) {
-          // Create user record in users table
           const { data: newUser, error: createError } = await supabase
             .from('users')
             .insert({
@@ -80,38 +77,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       } else {
-        userData = data as AppUser;
-        userRole = data.role as UserRole;
+        userData = userRes.data as AppUser;
+        userRole = userRes.data.role as UserRole;
       }
 
       setUser(userData);
       setRole(userRole);
+
+      // Handle stores data
+      if (storesRes.data && storesRes.data.length > 0) {
+        setStores(storesRes.data as Store[]);
+        if (userData?.store_id) {
+          const currentStore = storesRes.data.find(s => s.id === userData.store_id);
+          if (currentStore) setStore(currentStore as Store);
+        } else {
+          setStore(storesRes.data[0] as Store);
+        }
+      }
     } catch (err) {
       console.error('fetchUserProfile error:', err);
       setUser(null);
       setRole(null);
-    }
-
-    // Fetch stores for multi-branch support (always fetch, regardless of user existence)
-    try {
-      const { data: storesData } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
-
-      if (storesData && storesData.length > 0) {
-        setStores(storesData as Store[]);
-        // Set current store based on user data or first store
-        if (userData?.store_id) {
-          const currentStore = storesData.find(s => s.id === userData.store_id);
-          if (currentStore) setStore(currentStore as Store);
-        } else {
-          setStore(storesData[0] as Store);
-        }
-      }
-    } catch (storeErr) {
-      console.error('Failed to fetch stores:', storeErr);
     }
   };
 
@@ -192,8 +178,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (configError) {
       return { error: 'Aplikasi belum dikonfigurasi dengan benar. Hubungi administrator.' };
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
+    
+    // Explicitly fetch profile so user and role are set BEFORE the redirect finishes
+    if (data.user) {
+      await fetchUserProfile(data.user.id);
+    }
     return { error: null };
   };
 

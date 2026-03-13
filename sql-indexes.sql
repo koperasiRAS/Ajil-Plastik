@@ -35,17 +35,15 @@ ON transaction_items(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_transaction_items_product_id
 ON transaction_items(product_id);
 
--- Index for date-based COGS calculations
-CREATE INDEX IF NOT EXISTS idx_transaction_items_created_at
-ON transaction_items(created_at DESC);
+-- Note: transaction_items uses transactions.created_at via join for date logic
 
 -- ===============================================
 -- PRODUCTS TABLE INDEXES
 -- ===============================================
 
 -- Index for barcode lookup (POS scanning)
-CREATE INDEX IF NOT EXISTS idx_products_barcode
-ON products(barcode) UNIQUE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode
+ON products(barcode);
 
 -- Index for category filtering
 CREATE INDEX IF NOT EXISTS idx_products_category_id
@@ -96,8 +94,8 @@ CREATE INDEX IF NOT EXISTS idx_shifts_user_status
 ON shifts(user_id, status);
 
 -- Index for shift date queries
-CREATE INDEX IF NOT EXISTS idx_shifts_created_at
-ON shifts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_shifts_opened_at
+ON shifts(opened_at DESC);
 
 -- ===============================================
 -- CATEGORIES TABLE INDEXES
