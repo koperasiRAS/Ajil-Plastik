@@ -72,8 +72,8 @@ export default function ProtectedLayout({ children }: Readonly<{ children: React
   }
 
   // Not authenticated — redirect is happening, show spinner briefly
-  // Add safety: if stuck here for 3s, force redirect to login
-  if (!session || !role) {
+  // Only redirect if there's definitely no session (not just role loading)
+  if (!session && !loading) {
     return <StaleSessionGuard />;
   }
 

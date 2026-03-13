@@ -6,6 +6,11 @@ import { authFetch } from '@/lib/authFetch';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Expense } from '@/lib/types';
+import { formatRupiah } from '@/lib/format';
+import { exportToCSV } from '@/lib/exportCSV';
+import { getCurrentMonth } from '@/lib/dateUtils';
+import { AlertMessage, useAlert } from '@/components/AlertMessage';
+import { LoadingCenter } from '@/components/LoadingSpinner';
 
 const EXPENSE_CATEGORIES = ['Belanja Stok', 'Listrik', 'Air', 'Gaji', 'Sewa', 'Transportasi', 'Lainnya'];
 
@@ -13,11 +18,8 @@ export default function ExpensesPage() {
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [filterMonth, setFilterMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const { alert, setAlert, clearAlert } = useAlert();
+  const [filterMonth, setFilterMonth] = useState(getCurrentMonth);
 
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
@@ -37,16 +39,16 @@ export default function ExpensesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    setSaving(true); setMessage(null);
+    setSaving(true); clearAlert();
     try {
       const { error } = await supabase.from('expenses').insert({
         user_id: user.id, category, amount: Number.parseFloat(amount), description: description || null, date,
       });
       if (error) throw error;
-      setMessage({ type: 'success', text: '✓ Pengeluaran berhasil dicatat' });
+      setAlert('success', '✓ Pengeluaran berhasil dicatat');
       setCategory(''); setAmount(''); setDescription(''); setShowForm(false); refetch();
     } catch (err) {
-      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal menyimpan' });
+      setAlert('error', err instanceof Error ? err.message : 'Gagal menyimpan');
     } finally { setSaving(false); }
   };
 
@@ -56,7 +58,6 @@ export default function ExpensesPage() {
     refetch();
   };
 
-  const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
 
   const byCategory = expenses.reduce((acc, e) => {
@@ -64,14 +65,10 @@ export default function ExpensesPage() {
     return acc;
   }, {} as Record<string, number>);
 
-  const exportCSV = () => {
+  const handleExportCSV = () => {
     const headers = ['Tanggal', 'Kategori', 'Jumlah', 'Keterangan'];
-    const rows = expenses.map(e => [e.date, e.category, e.amount, e.description || '-']);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `pengeluaran_${filterMonth}.csv`; a.click();
-    URL.revokeObjectURL(url);
+    const rows = expenses.map(e => [e.date, e.category, e.amount, e.description || '-'] as (string | number)[]);
+    exportToCSV(headers, rows, `pengeluaran_${filterMonth}.csv`);
   };
 
   return (
@@ -79,13 +76,13 @@ export default function ExpensesPage() {
       <div className="flex items-center justify-between mb-6 animate-fade-in">
         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>💸 Pengeluaran</h1>
         <div className="flex gap-2">
-          <button onClick={exportCSV} className="px-4 py-2 rounded-lg text-sm transition-all hover:scale-105"
+          <button onClick={handleExportCSV} className="px-4 py-2 rounded-lg text-sm transition-all hover:scale-105"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>📥 Export</button>
           <button onClick={() => setShowForm(true)} className="btn-primary px-4 py-2">+ Tambah</button>
         </div>
       </div>
 
-      {message && <div className={`mb-4 ${message.type === 'success' ? 'alert-success' : 'alert-error'}`}>{message.text}</div>}
+      {alert && <AlertMessage type={alert.type} message={alert.message} onClose={clearAlert} />}
 
       <div className="mb-4 animate-fade-in">
         <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="input-field w-48" />
@@ -129,9 +126,7 @@ export default function ExpensesPage() {
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
-        </div>
+        <LoadingCenter />
       ) : (
         <div className="glass-card overflow-hidden animate-fade-in">
           <table className="data-table">

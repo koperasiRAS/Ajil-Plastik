@@ -13,10 +13,15 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // If already logged in, redirect to POS
+  // If already logged in AND user profile is loaded, redirect to POS
+  // Wait for role to be ready to avoid redirect loop
   useEffect(() => {
     if (!authLoading && session) {
-      router.replace('/pos');
+      // Small delay to ensure user profile is loaded
+      const timer = setTimeout(() => {
+        router.replace('/pos');
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [session, authLoading, router]);
 

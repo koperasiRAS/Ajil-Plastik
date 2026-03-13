@@ -65,6 +65,22 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
     initShift();
   }, [user]);
 
+  // Refresh products when user returns to this page (e.g., after adding products)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // User returned to this tab/page - refresh products from server
+        supabase.from('products').select('*, categories(name)').neq('is_active', false).order('name')
+          .then(({ data }) => {
+            if (data) setProducts(data as Product[]);
+          });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   // Keep existing component logic the same...
   const addToCart = useCallback((product: Product) => {
     if (product.stock <= 0) {

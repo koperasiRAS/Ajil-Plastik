@@ -2,6 +2,8 @@
 
 import { authFetch } from '@/lib/authFetch';
 import { useQuery } from '@tanstack/react-query';
+import { formatRupiah } from '@/lib/format';
+import { LoadingCenter } from '@/components/LoadingSpinner';
 
 interface DashboardData {
   todaySales: number;
@@ -37,12 +39,10 @@ export default function DashboardPage() {
     placeholderData: emptyDashboard,
   });
 
-  const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
-
   if (isLoading && !data) {
     return (
-      <div className="p-6 flex justify-center py-12" style={{ background: 'var(--bg-primary)' }}>
-        <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+      <div className="p-6" style={{ background: 'var(--bg-primary)' }}>
+        <LoadingCenter />
       </div>
     );
   }

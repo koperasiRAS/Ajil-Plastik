@@ -107,18 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
-    // Safety timeout — never stay loading for more than 3 seconds
-    const timeout = setTimeout(async () => {
-      if (mounted) {
-        console.warn('Auth timeout — forcing loading to false and clearing stale session');
-        try { await supabase.auth.signOut(); } catch { /* ignore */ }
-        setSession(null);
-        setUser(null);
-        setRole(null);
-        setLoading(false);
-      }
-    }, 3000);
-
     // Get initial session
     const initAuth = async () => {
       try {
@@ -137,12 +125,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Fetch profile and check if it succeeded
           await fetchUserProfile(session.user.id);
           if (!mounted) return;
-          
+
           // After fetchUserProfile, check if user was actually set
-          // We can't rely on React state here (closure issue), so we use the session  
+          // We can't rely on React state here (closure issue), so we use the session
           // The fetchUserProfile function sets user/role internally
-          // If profile doesn't exist, user will be null and ProtectedLayout's 
-          // StaleSessionGuard will redirect to /login after 3s
+          // If profile doesn't exist, user will be null and ProtectedLayout will handle redirect
           setSession(session);
         } else {
           // No session at all — go to login
@@ -154,7 +141,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
       } finally {
         if (mounted) {
-          clearTimeout(timeout);
           setLoading(false);
           initDone.current = true;
         }
@@ -188,7 +174,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
-      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, [configError]);

@@ -5,6 +5,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/lib/types';
 import { uploadProductImage } from '@/lib/imageUpload';
+import { formatRupiah } from '@/lib/format';
+import { exportToCSV } from '@/lib/exportCSV';
+import { AlertMessage, useAlert } from '@/components/AlertMessage';
+import { LoadingCenter } from '@/components/LoadingSpinner';
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
@@ -12,7 +16,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const { alert, setAlert, clearAlert } = useAlert();
   const [filterCategory, setFilterCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showArchived, setShowArchived] = useState(false);
@@ -71,7 +75,7 @@ export default function ProductsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      setMessage({ type: 'error', text: 'Ukuran file maksimal 5MB' });
+      setAlert('error', 'Ukuran file maksimal 5MB');
       return;
     }
     if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
@@ -83,7 +87,7 @@ export default function ProductsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true); setMessage(null);
+    setSaving(true); clearAlert();
 
     try {
       let imageUrl = editingProduct?.image_url || null;
@@ -103,15 +107,17 @@ export default function ProductsPage() {
       if (editingProduct) {
         const { error } = await supabase.from('products').update(productData).eq('id', editingProduct.id);
         if (error) throw error;
-        setMessage({ type: 'success', text: '✓ Produk berhasil diperbarui' });
+        setAlert('success', '✓ Produk berhasil diperbarui');
       } else {
         const { error } = await supabase.from('products').insert(productData);
         if (error) throw error;
-        setMessage({ type: 'success', text: '✓ Produk berhasil ditambahkan' });
+        setAlert('success', '✓ Produk berhasil ditambahkan');
       }
       resetForm(); invalidate();
+      // Also invalidate POS product cache so POS re-fetches on next visit
+      queryClient.invalidateQueries({ queryKey: ['products'] });
     } catch (err) {
-      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal menyimpan' });
+      setAlert('error', err instanceof Error ? err.message : 'Gagal menyimpan');
     } finally { setSaving(false); setUploading(false); }
   };
 
@@ -120,9 +126,9 @@ export default function ProductsPage() {
     const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
     if (error) {
       // Fallback: if is_active column doesn't exist yet, show a message
-      setMessage({ type: 'error', text: 'Gagal mengarsipkan. Pastikan kolom is_active sudah ada di tabel products.' });
+      setAlert('error', 'Gagal mengarsipkan. Pastikan kolom is_active sudah ada di tabel products.');
     } else {
-      setMessage({ type: 'success', text: `✓ Produk "${productName}" diarsipkan` });
+      setAlert('success', `✓ Produk "${productName}" diarsipkan`);
       invalidate();
       // Also invalidate POS product cache
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -131,9 +137,9 @@ export default function ProductsPage() {
 
   const restoreProduct = async (id: string, productName: string) => {
     const { error } = await supabase.from('products').update({ is_active: true }).eq('id', id);
-    if (error) setMessage({ type: 'error', text: 'Gagal memulihkan produk' });
+    if (error) setAlert('error', 'Gagal memulihkan produk');
     else {
-      setMessage({ type: 'success', text: `✓ Produk "${productName}" dipulihkan` });
+      setAlert('success', `✓ Produk "${productName}" dipulihkan`);
       invalidate();
       queryClient.invalidateQueries({ queryKey: ['products'] });
     }
@@ -142,11 +148,9 @@ export default function ProductsPage() {
   const addCategory = async () => {
     if (!newCategoryName.trim()) return;
     const { error } = await supabase.from('categories').insert({ name: newCategoryName.trim() });
-    if (error) setMessage({ type: 'error', text: error.message });
+    if (error) setAlert('error', error.message);
     else { setNewCategoryName(''); setShowCategoryForm(false); invalidate(); }
   };
-
-  const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
   const filtered = products.filter(p => {
     // Filter by archive status
@@ -158,15 +162,11 @@ export default function ProductsPage() {
     return true;
   });
 
-  const exportCSV = () => {
+  const handleExportCSV = () => {
     const headers = ['Nama', 'Barcode', 'Harga', 'Stok', 'Kategori'];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = filtered.map(p => [p.name, p.barcode, p.price, p.stock, (p as any).categories?.name || '-']);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'produk.csv'; a.click();
-    URL.revokeObjectURL(url);
+    const rows = filtered.map(p => [p.name, p.barcode, p.price, p.stock, (p as any).categories?.name || '-'] as (string | number)[]);
+    exportToCSV(headers, rows, 'produk.csv');
   };
 
   return (
@@ -174,7 +174,7 @@ export default function ProductsPage() {
       <div className="flex items-center justify-between mb-6 animate-fade-in">
         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>📦 Daftar Produk</h1>
         <div className="flex gap-2">
-          <button onClick={exportCSV} className="px-3 py-2 rounded-lg text-sm transition-all hover:scale-105"
+          <button onClick={handleExportCSV} className="px-3 py-2 rounded-lg text-sm transition-all hover:scale-105"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>📥 CSV</button>
           <button onClick={() => setShowCategoryForm(!showCategoryForm)} className="px-3 py-2 rounded-lg text-sm transition-all hover:scale-105"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>🏷️ Kategori</button>
@@ -182,7 +182,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {message && <div className={`mb-4 ${message.type === 'success' ? 'alert-success' : 'alert-error'}`}>{message.text}</div>}
+      {alert && <AlertMessage type={alert.type} message={alert.message} onClose={clearAlert} />}
 
       {showCategoryForm && (
         <div className="glass-card p-4 mb-4 flex gap-2 items-end animate-fade-in-scale">
@@ -276,9 +276,7 @@ export default function ProductsPage() {
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
-        </div>
+        <LoadingCenter />
       ) : (
         <div className="glass-card overflow-hidden">
           <table className="data-table">
