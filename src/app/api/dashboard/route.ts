@@ -40,7 +40,8 @@ export async function GET() {
       recentRes,
       expensesRes,
       cogsRes,
-      topProductsRes
+      topProductsRes,
+      shiftRes
     ] = await Promise.all([
       supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO),
       supabase.from('products').select('id', { count: 'exact', head: true }),
@@ -49,7 +50,15 @@ export async function GET() {
       supabase.from('expenses').select('amount').gte('date', todayDateWIB),
       supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO),
       supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo),
+      // Get current open shift for cash balance calculation
+      supabase.from('shifts').select('opening_cash').eq('status', 'open').order('opened_at', { ascending: false }).limit(1),
     ]);
+
+    // Get opening cash from current shift
+    let openingCash = 0;
+    if (shiftRes.data && shiftRes.data.length > 0) {
+      openingCash = Number(shiftRes.data[0].opening_cash) || 0;
+    }
 
     // Process expenses
     let todayExpenses = 0;
@@ -98,6 +107,7 @@ export async function GET() {
       totalProducts: productsRes.count || 0, lowStockCount: lowStockRes.count || 0,
       todayExpenses, todayCOGS, todayGrossProfit, todayNetProfit, grossMargin,
       recentTransactions: recentRes.data || [], topProducts, salesByPayment,
+      openingCash,
     });
   } catch (err) {
     console.error('Dashboard API error:', err);

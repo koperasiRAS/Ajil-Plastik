@@ -38,59 +38,80 @@ export default function ReceiptPrint({ data, onClose }: Readonly<{ data: Receipt
   const paymentLabel = (m: string) => m === 'cash' ? 'Tunai' : m === 'qris' ? 'QRIS' : 'Transfer';
 
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (!printWindow || !receiptRef.current) return;
+    try {
+      const printWindow = window.open('', '_blank', 'width=400,height=600');
 
-    const logoUrl = window.location.origin + '/logo.png';
+      // Check if popup was blocked
+      if (!printWindow) {
+        alert('Popup diblokir! Mohon izinkan popup untuk mencetak struk, atau gunakan Ctrl+P untuk mencetak halaman ini.');
+        return;
+      }
 
-    printWindow.document.write(`
-      <html>
-      <head>
-        <title>Struk</title>
-        <style>
-          @page { margin: 0; size: 58mm auto; }
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 11px;
-            width: 48mm;
-            padding: 3mm 2mm;
-            color: #000;
-            line-height: 1.5;
-            -webkit-print-color-adjust: exact;
-          }
-          .center { text-align: center; }
-          .right { text-align: right; }
-          .bold { font-weight: bold; }
-          .divider {
-            border: none;
-            border-top: 1px dashed #000;
-            margin: 4px 0;
-          }
-          .row {
-            display: flex;
-            justify-content: space-between;
-            padding: 1px 0;
-          }
-          .logo { width: 50px; height: auto; margin: 0 auto 4px; display: block; }
-          .store-name { font-size: 13px; font-weight: bold; letter-spacing: 0.5px; }
-          .store-info { font-size: 9px; line-height: 1.3; }
-          .item-name { font-size: 11px; font-weight: bold; }
-          .item-detail { font-size: 10px; }
-          .total-row { font-size: 14px; font-weight: bold; padding: 2px 0; }
-          .change-row { font-size: 13px; font-weight: bold; }
-          .footer { font-size: 9px; margin-top: 6px; }
-        </style>
-      </head>
-      <body>
-        ${receiptRef.current.innerHTML.replace(/src="\/logo\.png"/g, `src="${logoUrl}"`)}
-        <script>
-          window.onload = function() { window.print(); window.close(); };
-        <\/script>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
+      if (!receiptRef.current) {
+        printWindow.close();
+        alert('Gagal memuat struk. Silakan coba lagi.');
+        return;
+      }
+
+      const logoUrl = window.location.origin + '/logo.png';
+
+      printWindow.document.write(`
+        <html>
+        <head>
+          <title>Struk</title>
+          <style>
+            @page { margin: 0; size: 58mm auto; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              font-size: 11px;
+              width: 48mm;
+              padding: 3mm 2mm;
+              color: #000;
+              line-height: 1.5;
+              -webkit-print-color-adjust: exact;
+            }
+            .center { text-align: center; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            .divider {
+              border: none;
+              border-top: 1px dashed #000;
+              margin: 4px 0;
+            }
+            .row {
+              display: flex;
+              justify-content: space-between;
+              padding: 1px 0;
+            }
+            .logo { width: 50px; height: auto; margin: 0 auto 4px; display: block; }
+            .store-name { font-size: 13px; font-weight: bold; letter-spacing: 0.5px; }
+            .store-info { font-size: 9px; line-height: 1.3; }
+            .item-name { font-size: 11px; font-weight: bold; }
+            .item-detail { font-size: 10px; }
+            .total-row { font-size: 14px; font-weight: bold; padding: 2px 0; }
+            .change-row { font-size: 13px; font-weight: bold; }
+            .footer { font-size: 9px; margin-top: 6px; }
+          </style>
+        </head>
+        <body>
+          ${receiptRef.current.innerHTML.replace(/src="\/logo\.png"/g, `src="${logoUrl}"`)}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                // Don't auto-close, let user see the print preview
+              }, 300);
+            };
+          <\/script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Print error:', error);
+      alert('Gagal mencetak struk. Silakan coba lagi atau gunakan Ctrl+P.');
+    }
   };
 
   return (

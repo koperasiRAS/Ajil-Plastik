@@ -18,6 +18,7 @@ interface DashboardData {
   recentTransactions: { id: string; total: number; created_at: string; users: { name: string } | null; payment_method: string; }[];
   topProducts: { name: string; totalSold: number; }[];
   salesByPayment: { cash: number; qris: number; transfer: number; };
+  openingCash: number;
 }
 
 const emptyDashboard: DashboardData = {
@@ -26,10 +27,11 @@ const emptyDashboard: DashboardData = {
   todayGrossProfit: 0, todayNetProfit: 0, grossMargin: 0,
   recentTransactions: [], topProducts: [],
   salesByPayment: { cash: 0, qris: 0, transfer: 0 },
+  openingCash: 0,
 };
 
 export default function DashboardPage() {
-  const { data, isLoading } = useQuery<DashboardData>({
+  const { data, isLoading, refetch } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: async () => {
       const res = await authFetch('/api/dashboard');
@@ -37,6 +39,10 @@ export default function DashboardPage() {
       return res.json();
     },
     placeholderData: emptyDashboard,
+    // Refresh every 10 seconds for real-time updates
+    refetchInterval: 10000,
+    // Also refetch when window gains focus
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading && !data) {
@@ -109,14 +115,15 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 mb-6 stagger-children">
         <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-green)' }}>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>💵 Saldo Kas (Cash)</p>
-          <p className="text-2xl font-bold mt-1" style={{ color: (d.salesByPayment.cash - d.todayExpenses) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-            {formatRupiah(d.salesByPayment.cash - d.todayExpenses)}
+          <p className="text-2xl font-bold mt-1" style={{ color: (d.openingCash + d.salesByPayment.cash - d.todayExpenses) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+            {formatRupiah(d.openingCash + d.salesByPayment.cash - d.todayExpenses)}
           </p>
           <div className="flex gap-3 mt-1 flex-wrap">
-            <span className="text-[10px]" style={{ color: 'var(--accent-green)' }}>💰 Masuk: {formatRupiah(d.salesByPayment.cash)}</span>
+            <span className="text-[10px]" style={{ color: 'var(--accent-green)' }}>📥 Buka: {formatRupiah(d.openingCash)}</span>
+            <span className="text-[10px]" style={{ color: 'var(--accent-green)' }}>💰 Jual: {formatRupiah(d.salesByPayment.cash)}</span>
             <span className="text-[10px]" style={{ color: 'var(--accent-red)' }}>💸 Keluar: {formatRupiah(d.todayExpenses)}</span>
           </div>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Pemasukan cash − Pengeluaran kas</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Kas buka + Penjualan cash − Pengeluaran</p>
         </div>
         <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-blue)' }}>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>🏦 Saldo Bank (QRIS + Transfer)</p>

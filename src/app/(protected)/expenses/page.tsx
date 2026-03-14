@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { authFetch } from '@/lib/authFetch';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -16,6 +16,7 @@ const EXPENSE_CATEGORIES = ['Belanja Stok', 'Listrik', 'Air', 'Gaji', 'Sewa', 'T
 
 export default function ExpensesPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const { alert, setAlert, clearAlert } = useAlert();
@@ -46,7 +47,10 @@ export default function ExpensesPage() {
       });
       if (error) throw error;
       setAlert('success', '✓ Pengeluaran berhasil dicatat');
-      setCategory(''); setAmount(''); setDescription(''); setShowForm(false); refetch();
+      setCategory(''); setAmount(''); setDescription(''); setShowForm(false);
+      // Invalidate dashboard to reflect new expense
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      refetch();
     } catch (err) {
       setAlert('error', err instanceof Error ? err.message : 'Gagal menyimpan');
     } finally { setSaving(false); }
@@ -55,6 +59,8 @@ export default function ExpensesPage() {
   const deleteExpense = async (id: string) => {
     if (!confirm('Hapus pengeluaran ini?')) return;
     await supabase.from('expenses').delete().eq('id', id);
+    // Invalidate dashboard to reflect deleted expense
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     refetch();
   };
 
