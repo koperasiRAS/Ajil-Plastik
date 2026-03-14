@@ -213,6 +213,9 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       setCart([]); setDiscount(''); setCashReceived(''); setPaymentMethod('cash');
       setCheckingOut(false);
 
+      // Invalidate dashboard to reflect new transaction immediately
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+
       // Update stock in DB - wait for it to complete to ensure data consistency
       // Use Promise.allSettled to not fail if one update fails
       const stockUpdateResults = await Promise.allSettled(currentCart.map(item =>

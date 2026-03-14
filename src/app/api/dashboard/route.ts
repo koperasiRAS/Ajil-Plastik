@@ -28,7 +28,7 @@ export async function GET() {
   const supabase = await createServerSupabase();
 
   try {
-    const { todayStartUTC, todayDateWIB } = getWIBToday();
+    const { todayStartUTC } = getWIBToday();
     const todayISO = todayStartUTC.toISOString();
     const sevenDaysAgo = new Date(todayStartUTC.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -47,7 +47,8 @@ export async function GET() {
       supabase.from('products').select('id', { count: 'exact', head: true }),
       supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
       supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(5),
-      supabase.from('expenses').select('amount').gte('date', todayDateWIB),
+      // Use created_at instead of date for consistent timezone handling
+      supabase.from('expenses').select('amount').gte('created_at', todayISO),
       supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO),
       supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo),
       // Get current open shift for cash balance calculation

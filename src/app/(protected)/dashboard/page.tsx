@@ -31,7 +31,7 @@ const emptyDashboard: DashboardData = {
 };
 
 export default function DashboardPage() {
-  const { data, isLoading, refetch } = useQuery<DashboardData>({
+  const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: async () => {
       const res = await authFetch('/api/dashboard');
@@ -39,8 +39,8 @@ export default function DashboardPage() {
       return res.json();
     },
     placeholderData: emptyDashboard,
-    // Refresh every 10 seconds for real-time updates
-    refetchInterval: 10000,
+    // Refresh every 5 seconds for real-time updates (reduced from 10s)
+    refetchInterval: 5000,
     // Also refetch when window gains focus
     refetchOnWindowFocus: true,
   });

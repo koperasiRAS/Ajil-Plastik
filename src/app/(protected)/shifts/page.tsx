@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { authFetch } from '@/lib/authFetch';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Shift } from '@/lib/types';
-import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
+import { broadcastCacheReset } from '@/hooks/useCrossTabSync';
 
 export default function ShiftsPage() {
   const { user, role } = useAuth();
@@ -61,12 +60,10 @@ export default function ShiftsPage() {
       setMessage({ type: 'success', text: '✓ Shift berhasil ditutup!' });
       setClosingCash('');
       invalidate();
-      // Invalidate dashboard and transactions to reset data for new shift
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      // Broadcast to other tabs
-      broadcastCacheInvalidation(['dashboard']);
-      broadcastCacheInvalidation(['transactions']);
+      // FULL RESET: Clear all cache to ensure fresh data for new shift
+      queryClient.clear();
+      // Broadcast full reset to other tabs
+      broadcastCacheReset();
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal menutup shift' });
     } finally { setSaving(false); }
