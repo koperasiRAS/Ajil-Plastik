@@ -5,7 +5,6 @@ import { authFetch } from '@/lib/authFetch';
 import { useQuery } from '@tanstack/react-query';
 import { formatRupiah } from '@/lib/format';
 import { LoadingCenter } from '@/components/LoadingSpinner';
-import { useEffect, useState } from 'react';
 
 interface DashboardData {
   todaySales: number;
@@ -39,8 +38,6 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({ initialData }: DashboardClientProps) {
-  // Use initial data from server, then refetch client-side
-  const [mounted, setMounted] = useState(false);
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
@@ -49,19 +46,15 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       if (!res.ok) throw new Error('API error');
       return res.json();
     },
-    // Use initial data from SSR to show immediately (FCP optimization)
-    placeholderData: initialData || emptyDashboard,
+    // Use initial data from SSR to populate cache initially
+    initialData: initialData || emptyDashboard,
+    // Consider data fresh for 30 seconds to prevent immediate refetching on mount
+    staleTime: 30000,
     // Refresh every 30 seconds for better performance
     refetchInterval: 30000,
     // Also refetch when window gains focus
     refetchOnWindowFocus: true,
-    // Don't refetch on mount if we have initial data
-    enabled: mounted || !initialData,
   });
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Show loading only if no initial data and still loading
   if (isLoading && !data && !initialData) {
