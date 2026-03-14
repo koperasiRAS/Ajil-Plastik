@@ -11,6 +11,7 @@ import { exportToCSV } from '@/lib/exportCSV';
 import { getCurrentMonth } from '@/lib/dateUtils';
 import { AlertMessage, useAlert } from '@/components/AlertMessage';
 import { LoadingCenter } from '@/components/LoadingSpinner';
+import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
 
 const EXPENSE_CATEGORIES = ['Belanja Stok', 'Listrik', 'Air', 'Gaji', 'Sewa', 'Transportasi', 'Lainnya'];
 
@@ -50,6 +51,7 @@ export default function ExpensesPage() {
       setCategory(''); setAmount(''); setDescription(''); setShowForm(false);
       // Invalidate dashboard to reflect new expense
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      broadcastCacheInvalidation(['dashboard']);
       refetch();
     } catch (err) {
       setAlert('error', err instanceof Error ? err.message : 'Gagal menyimpan');
@@ -61,6 +63,7 @@ export default function ExpensesPage() {
     await supabase.from('expenses').delete().eq('id', id);
     // Invalidate dashboard to reflect deleted expense
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    broadcastCacheInvalidation(['dashboard']);
     refetch();
   };
 

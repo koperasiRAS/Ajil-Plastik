@@ -9,6 +9,7 @@ import { formatRupiah } from '@/lib/format';
 import { exportToCSV } from '@/lib/exportCSV';
 import { AlertMessage, useAlert } from '@/components/AlertMessage';
 import { LoadingCenter } from '@/components/LoadingSpinner';
+import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
@@ -116,6 +117,7 @@ export default function ProductsPage() {
       resetForm(); invalidate();
       // Also invalidate POS product cache so POS re-fetches on next visit
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      broadcastCacheInvalidation(['products']);
     } catch (err) {
       setAlert('error', err instanceof Error ? err.message : 'Gagal menyimpan');
     } finally { setSaving(false); setUploading(false); }
@@ -132,6 +134,7 @@ export default function ProductsPage() {
       invalidate();
       // Also invalidate POS product cache
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      broadcastCacheInvalidation(['products']);
     }
   };
 
@@ -142,6 +145,7 @@ export default function ProductsPage() {
       setAlert('success', `✓ Produk "${productName}" dipulihkan`);
       invalidate();
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      broadcastCacheInvalidation(['products']);
     }
   };
 

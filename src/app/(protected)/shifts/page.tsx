@@ -6,6 +6,7 @@ import { authFetch } from '@/lib/authFetch';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { Shift } from '@/lib/types';
+import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
 
 export default function ShiftsPage() {
   const { user, role } = useAuth();
@@ -58,7 +59,14 @@ export default function ShiftsPage() {
       }).eq('id', activeShift.id);
       if (error) throw error;
       setMessage({ type: 'success', text: '✓ Shift berhasil ditutup!' });
-      setClosingCash(''); invalidate();
+      setClosingCash('');
+      invalidate();
+      // Invalidate dashboard and transactions to reset data for new shift
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      // Broadcast to other tabs
+      broadcastCacheInvalidation(['dashboard']);
+      broadcastCacheInvalidation(['transactions']);
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Gagal menutup shift' });
     } finally { setSaving(false); }

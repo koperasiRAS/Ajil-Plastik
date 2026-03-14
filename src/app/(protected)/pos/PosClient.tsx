@@ -70,7 +70,8 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         // User returned to this tab/page - refresh products from server
-        supabase.from('products').select('*, categories(name)').neq('is_active', false).order('name')
+        // Use .or() to include products where is_active is true OR null (backward compatibility)
+        supabase.from('products').select('*, categories(name)').or('is_active.is.true,is_active.is.null').order('name')
           .then(({ data }) => {
             if (data) setProducts(data as Product[]);
           });

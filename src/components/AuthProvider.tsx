@@ -5,6 +5,7 @@ import { Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { clearAuthCache } from '@/lib/authFetch';
 import { AppUser, UserRole, Store } from '@/lib/types';
+import { useCrossTabSync } from '@/hooks/useCrossTabSync';
 
 interface AuthContextType {
   session: Session | null;
@@ -31,6 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState(false);
   const initDone = useRef(false);
+
+  // Enable cross-tab cache sync
+  useCrossTabSync();
 
   // Check if Supabase is configured on mount
   useEffect(() => {
