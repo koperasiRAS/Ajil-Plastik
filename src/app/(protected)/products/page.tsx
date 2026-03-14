@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/lib/types';
@@ -295,13 +294,8 @@ export default function ProductsPage() {
                 <tr key={product.id}>
                   <td>
                     <div className="flex items-center gap-3">
-                      {product.image_url ? (
-                        <div className="w-12 h-12 rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-input)' }}>
-                          <Image src={product.image_url} alt={product.name} fill sizes="48px" loading="lazy" className="object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 rounded-lg flex items-center justify-center text-lg" style={{ background: 'var(--bg-input)' }}>📦</div>
-                      )}
+                      {/* Using emoji instead of image for better performance */}
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ background: 'var(--bg-input)' }}>📦</div>
                       <span style={{ color: 'var(--text-primary)' }}>{product.name}</span>
                     </div>
                   </td>

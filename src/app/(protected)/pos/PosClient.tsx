@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
@@ -341,14 +340,9 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
                 className="glass-card p-0 overflow-hidden text-left transition-all duration-200 group disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ cursor: product.stock > 0 ? 'pointer' : 'not-allowed' }}
               >
-                {/* Product Image */}
-                <div className="product-image-container relative" style={{ background: 'var(--bg-input)' }}>
-                  {product.image_url ? (
-                    <Image src={product.image_url} alt={product.name} fill sizes="100px" loading="lazy"
-                      className="object-cover transition-transform duration-300 group-hover:scale-110" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
-                  )}
+                {/* Product Image - Using emoji instead of images for better performance */}
+                <div className="product-image-container relative flex items-center justify-center" style={{ background: 'var(--bg-input)' }}>
+                  <div className="text-4xl">📦</div>
                   {product.stock <= 5 && product.stock > 0 && (
                     <span className="absolute top-1 right-1 badge badge-yellow text-[10px] px-1.5">Sisa {product.stock}</span>
                   )}
@@ -401,13 +395,9 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
           {cart.map(item => (
             <div key={item.product.id} className="glass-card p-3 animate-fade-in">
               <div className="flex items-start gap-2.5">
-                {/* Thumbnail */}
-                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 relative" style={{ background: 'var(--bg-input)' }}>
-                  {item.product.image_url ? (
-                    <Image src={item.product.image_url} alt="" fill sizes="40px" loading="lazy" className="object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
-                  )}
+                {/* Thumbnail - Using emoji instead of image for better performance */}
+                <div className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center" style={{ background: 'var(--bg-input)' }}>
+                  <span className="text-lg">📦</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between">
