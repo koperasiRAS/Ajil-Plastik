@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/lib/types';
@@ -295,7 +296,9 @@ export default function ProductsPage() {
                   <td>
                     <div className="flex items-center gap-3">
                       {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} loading="lazy" className="w-12 h-12 rounded-lg object-cover" />
+                        <div className="w-12 h-12 rounded-lg overflow-hidden relative" style={{ background: 'var(--bg-input)' }}>
+                          <Image src={product.image_url} alt={product.name} fill sizes="48px" loading="lazy" className="object-cover" />
+                        </div>
                       ) : (
                         <div className="w-12 h-12 rounded-lg flex items-center justify-center text-lg" style={{ background: 'var(--bg-input)' }}>📦</div>
                       )}

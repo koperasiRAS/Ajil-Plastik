@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 
@@ -92,7 +93,9 @@ export default function ProtectedLayout({ children }: Readonly<{ children: React
           </svg>
         </button>
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Logo" className="w-10 h-auto object-contain" />
+          <div className="w-10 h-10 relative">
+            <Image src="/logo.png" alt="Logo" fill sizes="40px" className="object-contain" />
+          </div>
         </div>
         <div className="w-9" /> {/* Spacer */}
       </div>

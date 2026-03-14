@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 
@@ -87,7 +88,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm relative z-10 animate-fade-in">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Ajil Plastik" className="w-36 h-36 mx-auto mb-4 object-contain animate-fade-in-scale" />
+          <div className="w-36 h-36 mx-auto mb-4 relative animate-fade-in-scale">
+            <Image src="/logo.png" alt="Ajil Plastik" fill sizes="144px" priority className="object-contain" />
+          </div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Ajil Plastik</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Sistem Management</p>
         </div>

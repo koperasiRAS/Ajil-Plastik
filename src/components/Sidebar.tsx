@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/components/ThemeProvider';
@@ -65,7 +66,9 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
       >
         {!collapsed && (
           <div className="animate-fade-in flex items-center gap-2">
-            <img src="/logo.png" alt="Logo" className="w-14 h-auto object-contain" />
+            <div className="w-14 h-10 relative">
+              <Image src="/logo.png" alt="Logo" fill sizes="56px" className="object-contain" />
+            </div>
             <button
               onClick={() => setCollapsed(!collapsed)}
               className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110 ml-auto"

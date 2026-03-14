@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
@@ -343,8 +344,8 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
                 {/* Product Image */}
                 <div className="product-image-container relative" style={{ background: 'var(--bg-input)' }}>
                   {product.image_url ? (
-                    <img src={product.image_url} alt={product.name} loading="lazy"
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                    <Image src={product.image_url} alt={product.name} fill sizes="100px" loading="lazy"
+                      className="object-cover transition-transform duration-300 group-hover:scale-110" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
                   )}
@@ -401,9 +402,9 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
             <div key={item.product.id} className="glass-card p-3 animate-fade-in">
               <div className="flex items-start gap-2.5">
                 {/* Thumbnail */}
-                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: 'var(--bg-input)' }}>
+                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 relative" style={{ background: 'var(--bg-input)' }}>
                   {item.product.image_url ? (
-                    <img src={item.product.image_url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    <Image src={item.product.image_url} alt="" fill sizes="40px" loading="lazy" className="object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
                   )}
