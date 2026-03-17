@@ -27,6 +27,27 @@ export default async function DashboardPage() {
     const todayISO = todayStartUTC.toISOString();
     const sevenDaysAgo = new Date(todayStartUTC.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    // Get active shift first (to filter transactions by shift)
+    const { data: activeShiftData } = await supabase
+      .from('shifts')
+      .select('id, opening_cash')
+      .eq('status', 'open')
+      .order('opened_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const activeShiftId = activeShiftData?.id || null;
+    const openingCash = activeShiftData ? Number(activeShiftData.opening_cash) || 0 : 0;
+
+    // Filter transactions by active shift if exists, otherwise by today
+    const txnQuery = activeShiftId
+      ? supabase.from('transactions').select('total, payment_method').eq('shift_id', activeShiftId)
+      : supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO);
+
+    const recentQuery = activeShiftId
+      ? supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').eq('shift_id', activeShiftId).order('created_at', { ascending: false }).limit(5)
+      : supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').gte('created_at', todayISO).order('created_at', { ascending: false }).limit(5);
+
     // Fetch all data in parallel on the server
     const [
       txnRes,
@@ -36,23 +57,21 @@ export default async function DashboardPage() {
       expensesRes,
       cogsRes,
       topProductsRes,
-      shiftRes
     ] = await Promise.all([
-      supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO),
+      txnQuery,
       supabase.from('products').select('id', { count: 'exact', head: true }),
       supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
-      supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(5),
+      recentQuery,
       supabase.from('expenses').select('amount').gte('created_at', todayISO),
-      supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO),
+      // COGS filtered by shift if active
+      activeShiftId
+        ? supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id)').eq('transactions.shift_id', activeShiftId)
+        : supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO),
       supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo),
-      supabase.from('shifts').select('opening_cash').eq('status', 'open').order('opened_at', { ascending: false }).limit(1),
     ]);
 
     // Process data
-    let openingCash = 0;
-    if (shiftRes.data && shiftRes.data.length > 0) {
-      openingCash = Number(shiftRes.data[0].opening_cash) || 0;
-    }
+    // openingCash is already fetched above with activeShiftData
 
     let todayExpenses = 0;
     try {

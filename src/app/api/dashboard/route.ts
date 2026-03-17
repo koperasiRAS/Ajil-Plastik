@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
 
 // Helper: get WIB (UTC+7) date boundaries
@@ -7,7 +7,7 @@ function getWIBToday() {
   // Current time in WIB
   const wibOffset = 7 * 60; // UTC+7 in minutes
   const wibNow = new Date(now.getTime() + wibOffset * 60 * 1000);
-  
+
   // Today start in WIB = midnight WIB = 17:00 UTC previous day
   const wibMidnight = new Date(Date.UTC(
     wibNow.getUTCFullYear(),
@@ -17,20 +17,37 @@ function getWIBToday() {
   ));
   // Convert back to UTC: midnight WIB = midnight - 7 hours in UTC
   const todayStartUTC = new Date(wibMidnight.getTime() - wibOffset * 60 * 1000);
-  
+
   // Today's date string in WIB format (YYYY-MM-DD)
   const todayDateWIB = `${wibNow.getUTCFullYear()}-${String(wibNow.getUTCMonth() + 1).padStart(2, '0')}-${String(wibNow.getUTCDate()).padStart(2, '0')}`;
-  
+
   return { todayStartUTC, todayDateWIB };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createServerSupabase();
+  const { searchParams } = new URL(request.url);
+  const shiftId = searchParams.get('shift_id'); // Optional: filter by specific shift
 
   try {
     const { todayStartUTC } = getWIBToday();
     const todayISO = todayStartUTC.toISOString();
     const sevenDaysAgo = new Date(todayStartUTC.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Determine transaction filter based on shift_id
+    // If shift_id provided, filter by that shift; otherwise use today's date
+    const txnFilter = shiftId
+      ? supabase.from('transactions').select('total, payment_method').eq('shift_id', shiftId)
+      : supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO);
+
+    const recentFilter = shiftId
+      ? supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').eq('shift_id', shiftId).order('created_at', { ascending: false }).limit(5)
+      : supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').gte('created_at', todayISO).order('created_at', { ascending: false }).limit(5);
+
+    // For COGS and top products - filter by shift_id if provided
+    const cogsFilter = shiftId
+      ? supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id)').eq('transactions.shift_id', shiftId)
+      : supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO);
 
     // ALL queries in parallel for maximum performance!
     const [
@@ -43,13 +60,13 @@ export async function GET() {
       topProductsRes,
       shiftRes
     ] = await Promise.all([
-      supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO),
+      txnFilter,
       supabase.from('products').select('id', { count: 'exact', head: true }),
       supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
-      supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(5),
+      recentFilter,
       // Use created_at instead of date for consistent timezone handling
       supabase.from('expenses').select('amount').gte('created_at', todayISO),
-      supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO),
+      cogsFilter,
       supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo),
       // Get current open shift for cash balance calculation
       supabase.from('shifts').select('opening_cash').eq('status', 'open').order('opened_at', { ascending: false }).limit(1),

@@ -40,6 +40,7 @@ export interface Product {
 export interface Transaction {
   id: string;
   user_id: string;
+  shift_id: string | null;  // Link transaction to a specific shift
   total: number;
   payment_method: 'cash' | 'qris' | 'transfer';
   discount: number;

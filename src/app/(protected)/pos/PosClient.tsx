@@ -30,6 +30,7 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
   const [checkingOut, setCheckingOut] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [hasOpenShift, setHasOpenShift] = useState<boolean | null>(null);
+  const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'transfer'>('cash');
   const [discount, setDiscount] = useState('');
   const [cashReceived, setCashReceived] = useState('');
@@ -54,7 +55,9 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
           .eq('status', 'open')
           .limit(1);
 
-        setHasOpenShift(shiftData && shiftData.length > 0);
+        const hasShift = shiftData && shiftData.length > 0;
+        setHasOpenShift(hasShift);
+        setCurrentShiftId(hasShift ? shiftData[0].id : null);
       } catch (err) {
         console.error('POS init shift error:', err);
         setHasOpenShift(false);
@@ -171,7 +174,7 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       // Create transaction
       const { data: txn, error: txnError } = await supabase
         .from('transactions')
-        .insert({ user_id: user.id, total, payment_method: paymentMethod, discount: discountAmount })
+        .insert({ user_id: user.id, shift_id: currentShiftId, total, payment_method: paymentMethod, discount: discountAmount })
         .select('id').single();
 
       if (txnError || !txn) throw new Error('Gagal membuat transaksi');
