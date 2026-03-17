@@ -39,21 +39,25 @@ export default function ReceiptPrint({ data, onClose }: Readonly<{ data: Receipt
 
   const handlePrint = () => {
     try {
-      const printWindow = window.open('', '_blank', 'width=400,height=600');
-
-      // Check if popup was blocked
-      if (!printWindow) {
-        alert('Popup diblokir! Mohon izinkan popup untuk mencetak struk, atau gunakan Ctrl+P untuk mencetak halaman ini.');
-        return;
-      }
-
+      // If receiptRef is not available, show error
       if (!receiptRef.current) {
-        printWindow.close();
         alert('Gagal memuat struk. Silakan coba lagi.');
         return;
       }
 
       const logoUrl = window.location.origin + '/logo.png';
+
+      // Original method: Open new window
+      const printWindow = window.open('', '_blank', 'width=400,height=600');
+
+      // Check if popup was blocked - use fallback method
+      if (!printWindow) {
+        // Fallback: Use browser's print dialog with current page content
+        alert('Popup printer diblokir! Menggunakan metode alternatif.\n\nPastikan popup diizinkan untuk mencetak struk.');
+        // Trigger browser print dialog - user can print from preview
+        window.print();
+        return;
+      }
 
       printWindow.document.write(`
         <html>
