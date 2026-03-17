@@ -8,6 +8,8 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { queryClient } from '@/lib/queryClient';
+import { broadcastCacheReset } from '@/hooks/useCrossTabSync';
 
 interface NavItem {
   label: string;
@@ -83,7 +85,12 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
         {!collapsed && stores.length > 0 && (
           <select
             value={store?.id || ''}
-            onChange={(e) => setStore(e.target.value)}
+            onChange={(e) => {
+              setStore(e.target.value);
+              // Clear all cache when switching stores to ensure fresh data
+              queryClient.clear();
+              broadcastCacheReset();
+            }}
             className="input-field text-xs py-1.5"
             style={{ fontSize: '0.75rem' }}
           >

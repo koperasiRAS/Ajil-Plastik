@@ -8,7 +8,7 @@ import { Shift } from '@/lib/types';
 import { broadcastCacheReset } from '@/hooks/useCrossTabSync';
 
 export default function ShiftsPage() {
-  const { user, role } = useAuth();
+  const { user, role, store } = useAuth();
   const queryClient = useQueryClient();
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
@@ -39,7 +39,7 @@ export default function ShiftsPage() {
     if (!user) return;
     setSaving(true); setMessage(null);
     try {
-      const { error } = await supabase.from('shifts').insert({ user_id: user.id, opening_cash: Number.parseFloat(openingCash) || 0, status: 'open' });
+      const { error } = await supabase.from('shifts').insert({ user_id: user.id, store_id: store?.id || null, opening_cash: Number.parseFloat(openingCash) || 0, status: 'open' });
       if (error) throw error;
       setMessage({ type: 'success', text: '✓ Shift berhasil dibuka!' });
       setOpeningCash(''); invalidate();

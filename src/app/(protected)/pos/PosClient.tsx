@@ -18,7 +18,7 @@ interface PosClientProps {
 }
 
 export default function PosClient({ initialProducts, initialCategories }: PosClientProps) {
-  const { user } = useAuth();
+  const { user, store } = useAuth();
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -174,7 +174,7 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       // Create transaction
       const { data: txn, error: txnError } = await supabase
         .from('transactions')
-        .insert({ user_id: user.id, shift_id: currentShiftId, total, payment_method: paymentMethod, discount: discountAmount })
+        .insert({ user_id: user.id, shift_id: currentShiftId, store_id: store?.id || null, total, payment_method: paymentMethod, discount: discountAmount })
         .select('id').single();
 
       if (txnError || !txn) throw new Error('Gagal membuat transaksi');

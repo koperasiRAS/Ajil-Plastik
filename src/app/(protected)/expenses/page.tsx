@@ -16,7 +16,7 @@ import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
 const EXPENSE_CATEGORIES = ['Belanja Stok', 'Listrik', 'Air', 'Gaji', 'Sewa', 'Transportasi', 'Lainnya'];
 
 export default function ExpensesPage() {
-  const { user } = useAuth();
+  const { user, store } = useAuth();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -44,7 +44,7 @@ export default function ExpensesPage() {
     setSaving(true); clearAlert();
     try {
       const { error } = await supabase.from('expenses').insert({
-        user_id: user.id, category, amount: Number.parseFloat(amount), description: description || null, date,
+        user_id: user.id, store_id: store?.id || null, category, amount: Number.parseFloat(amount), description: description || null, date,
       });
       if (error) throw error;
       setAlert('success', '✓ Pengeluaran berhasil dicatat');
