@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRef, useState, useEffect } from 'react';
 
 interface ReceiptData {
@@ -151,7 +152,7 @@ export default function ReceiptPrint({ data, onClose }: Readonly<{ data: Receipt
           >
             {/* Header */}
             <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-              <img src="/logo.png" alt="Logo" style={{ width: '50px', height: 'auto', margin: '0 auto 4px', display: 'block' }} />
+              <Image src="/logo.png" alt="Logo" width={50} height={50} style={{ margin: '0 auto 4px', display: 'block' }} />
               <div style={{ fontSize: '14px', fontWeight: 'bold', letterSpacing: '0.5px' }}>{data.storeName}</div>
               <div style={{ fontSize: '9px', lineHeight: '1.4', marginTop: '2px', whiteSpace: 'pre-line' }}>
                 {data.storeAddress}

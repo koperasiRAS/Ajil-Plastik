@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/lib/types';
@@ -162,8 +163,8 @@ export default function ProductsPage() {
   };
 
   const filtered = products.filter(p => {
-    // Filter by archive status
-    const isActive = (p as any).is_active !== false; // default true if column missing
+    // Filter by archive status - default true if column missing
+    const isActive = p.is_active !== false;
     if (!showArchived && !isActive) return false;
     if (showArchived && isActive) return false;
     if (filterCategory && p.category_id !== filterCategory) return false;
@@ -173,8 +174,7 @@ export default function ProductsPage() {
 
   const handleExportCSV = () => {
     const headers = ['Nama', 'Barcode', 'Harga', 'Stok', 'Kategori'];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = filtered.map(p => [p.name, p.barcode, p.price, p.stock, (p as any).categories?.name || '-'] as (string | number)[]);
+    const rows = filtered.map(p => [p.name, p.barcode, p.price, p.stock, p.categories?.name || '-'] as (string | number)[]);
     exportToCSV(headers, rows, 'produk.csv');
   };
 
@@ -239,7 +239,7 @@ export default function ProductsPage() {
                   style={{ background: 'var(--bg-input)', border: '2px dashed var(--border-hover)' }}
                 >
                   {imagePreview ? (
-                    <img src={imagePreview} alt="Preview" loading="lazy" className="w-full h-full object-cover" />
+                    <Image src={imagePreview} alt="Preview" fill className="object-cover" />
                   ) : (
                     <div className="text-center">
                       <span className="text-2xl">📷</span>

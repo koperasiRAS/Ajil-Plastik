@@ -31,7 +31,7 @@ export default function HistoryPage() {
       if (!res.ok) throw new Error('API error');
       return res.json();
     },
-    placeholderData: (prev: any) => prev, // Keep previous data while loading
+    placeholderData: (prev) => prev, // Keep previous data while loading
   });
 
   const transactions: TransactionWithItems[] = Array.isArray(historyData?.data) ? historyData.data : [];

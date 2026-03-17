@@ -55,7 +55,6 @@ export default function ProtectedLayout({ children }: Readonly<{ children: React
   }, [session, role, loading, pathname, router]);
 
   // Close mobile menu on route change
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);

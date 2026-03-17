@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // Disable set-state-in-effect rule (common pattern for theme providers)
+  { rules: { "react-hooks/set-state-in-effect": "off" } },
 ]);
 
 export default eslintConfig;

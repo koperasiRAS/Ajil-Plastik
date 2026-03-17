@@ -35,6 +35,7 @@ export interface Product {
   category_id: string | null;
   store_id: string | null;  // Link to store/branch
   created_at: string;
+  is_active?: boolean | null;
   categories?: Category | null;
 }
 

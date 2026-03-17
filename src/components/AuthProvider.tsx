@@ -180,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configError]);
 
   const login = async (email: string, password: string) => {
@@ -265,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo(() => ({
     session, user, role, store, stores, loading, isConfigured: !configError, login, signup, logout, setStore: switchStore
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [session, user, role, store, stores, loading, configError]);
 
   // If Supabase is not configured, show error

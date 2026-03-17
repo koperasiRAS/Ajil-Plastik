@@ -7,6 +7,10 @@ import { useAuth } from '@/components/AuthProvider';
 import { Shift } from '@/lib/types';
 import { broadcastCacheReset } from '@/hooks/useCrossTabSync';
 
+interface ShiftWithUser extends Shift {
+  users?: { name: string } | null;
+}
+
 export default function ShiftsPage() {
   const { user, role, store } = useAuth();
   const queryClient = useQueryClient();
@@ -126,7 +130,7 @@ export default function ShiftsPage() {
         <table className="data-table">
           <thead><tr><th>Kasir</th><th>Buka</th><th>Tutup</th><th className="text-right">Kas Awal</th><th className="text-right">Kas Akhir</th><th className="text-center">Status</th></tr></thead>
           <tbody>
-            {shifts.map((shift: any) => (
+            {shifts.map((shift: ShiftWithUser) => (
               <tr key={shift.id}>
                 <td style={{ color: 'var(--text-primary)' }}>{shift.users?.name || '-'}</td>
                 <td className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(shift.opened_at).toLocaleString('id-ID')}</td>

@@ -21,7 +21,7 @@ interface PosClientProps {
 export default function PosClient({ initialProducts, initialCategories }: PosClientProps) {
   const { user, store } = useAuth();
   const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const categories = initialCategories;
   const [cart, setCart] = useState<CartItem[]>([]);
   
   const [searchQuery, setSearchQuery] = useState('');

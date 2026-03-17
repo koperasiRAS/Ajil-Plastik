@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 export default function GlobalError({
   error,
@@ -9,15 +9,13 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const [isClientError, setIsClientError] = useState(false);
-
+  // Error is already available in props, no need for additional state
   useEffect(() => {
     // Log error to console for debugging
     console.error('=== Global Error Boundary ===');
     console.error('Error:', error);
     console.error('Digest:', error.digest);
     console.error('=============================');
-    setIsClientError(true);
   }, [error]);
 
   return (
@@ -27,7 +25,7 @@ export default function GlobalError({
           <div className="text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold mb-2">Terjadi Kesalahan</h2>
           <p className="text-gray-400 mb-4">
-            {isClientError && error.message
+            {error.message
               ? error.message
               : ' Aplikasi mengalami masalah. Silakan coba lagi.'}
           </p>
