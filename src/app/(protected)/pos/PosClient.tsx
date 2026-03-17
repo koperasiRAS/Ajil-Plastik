@@ -48,12 +48,19 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
           return;
         }
 
-        const { data: shiftData } = await supabase
+        // Query shifts filtered by user AND store (if store selected)
+        let query = supabase
           .from('shifts')
           .select('id')
           .eq('user_id', user.id)
-          .eq('status', 'open')
-          .limit(1);
+          .eq('status', 'open');
+
+        // Filter by store if user has a store selected
+        if (store?.id) {
+          query = query.eq('store_id', store.id);
+        }
+
+        const { data: shiftData } = await query.limit(1);
 
         const hasShift = shiftData && shiftData.length > 0;
         setHasOpenShift(hasShift);
@@ -66,7 +73,7 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       }
     };
     initShift();
-  }, [user]);
+  }, [user, store?.id]);
 
   // Refresh products when user returns to this page (e.g., after adding products)
   useEffect(() => {
