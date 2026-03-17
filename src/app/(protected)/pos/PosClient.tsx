@@ -8,6 +8,7 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { Product, CartItem, Category } from '@/lib/types';
 import { queryClient } from '@/lib/queryClient';
 import { useDebounce } from 'use-debounce';
+import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
 
 // Lazy Load ReceiptPrint Component
 const ReceiptPrint = dynamic(() => import('@/components/ReceiptPrint'), { ssr: false });
@@ -225,6 +226,7 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
 
       // Invalidate dashboard to reflect new transaction immediately
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      broadcastCacheInvalidation(['dashboard']);
 
       // Update stock in DB - wait for it to complete to ensure data consistency
       // Use Promise.allSettled to not fail if one update fails
@@ -253,6 +255,12 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       queryClient.invalidateQueries({ queryKey: ['low-stock-count'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['history'] });
+
+      // Broadcast to other tabs
+      broadcastCacheInvalidation(['products']);
+      broadcastCacheInvalidation(['products-page']);
+      broadcastCacheInvalidation(['history']);
+      broadcastCacheInvalidation(['transactions']);
 
       return; // Exit early — UI already updated
     } catch (err) {
