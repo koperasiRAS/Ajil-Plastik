@@ -57,13 +57,17 @@ export async function GET(request: NextRequest) {
       recentQuery = recentQuery.match(storeFilter);
     }
 
-    // For COGS - filter by shift_id or date
+    // For COGS - filter by shift_id or date AND store
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let cogsQuery: any = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)');
+    let cogsQuery: any = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at, store_id)');
     if (shiftId) {
-      cogsQuery = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id)').eq('transactions.shift_id', shiftId);
+      cogsQuery = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id, store_id)').eq('transactions.shift_id', shiftId);
     } else {
       cogsQuery = cogsQuery.gte('transactions.created_at', todayISO);
+    }
+    // Apply store filter to COGS query
+    if (storeId) {
+      cogsQuery = cogsQuery.eq('transactions.store_id', storeId);
     }
 
     // ALL queries in parallel for maximum performance!

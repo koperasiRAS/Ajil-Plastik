@@ -87,6 +87,7 @@ export interface Expense {
   amount: number;
   description: string | null;
   date: string;
+  payment_method: 'cash' | 'transfer'; // How the expense was paid
   created_at: string;
 }
 

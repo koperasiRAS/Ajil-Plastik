@@ -26,6 +26,7 @@ export default function ExpensesPage() {
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const { data: expenses = [], isLoading, refetch } = useQuery<Expense[]>({
@@ -46,7 +47,7 @@ export default function ExpensesPage() {
     setSaving(true); clearAlert();
     try {
       const { error } = await supabase.from('expenses').insert({
-        user_id: user.id, store_id: store?.id || null, category, amount: Number.parseFloat(amount), description: description || null, date,
+        user_id: user.id, store_id: store?.id || null, category, amount: Number.parseFloat(amount), description: description || null, date, payment_method: paymentMethod,
       });
       if (error) throw error;
       setAlert('success', '✓ Pengeluaran berhasil dicatat');
@@ -123,6 +124,11 @@ export default function ExpensesPage() {
               </select></div>
             <div><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Jumlah (Rp)</label>
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required min="0" className="input-field" /></div>
+            <div><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Metode Pembayaran</label>
+              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as 'cash' | 'transfer')} required className="input-field">
+                <option value="cash">💵 Cash</option>
+                <option value="transfer">🏦 Transfer</option>
+              </select></div>
             <div><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Tanggal</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-field" /></div>
             <div><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Keterangan</label>
@@ -141,12 +147,13 @@ export default function ExpensesPage() {
       ) : (
         <div className="glass-card overflow-hidden animate-fade-in">
           <table className="data-table">
-            <thead><tr><th>Tanggal</th><th>Kategori</th><th className="text-right">Jumlah</th><th>Keterangan</th><th className="text-right">Aksi</th></tr></thead>
+            <thead><tr><th>Tanggal</th><th>Kategori</th><th>Cara Bayar</th><th className="text-right">Jumlah</th><th>Keterangan</th><th className="text-right">Aksi</th></tr></thead>
             <tbody>
               {expenses.map(exp => (
                 <tr key={exp.id}>
                   <td className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(exp.date).toLocaleDateString('id-ID')}</td>
                   <td><span className="badge badge-purple">{exp.category}</span></td>
+                  <td className="text-xs">{exp.payment_method === 'cash' ? '💵 Cash' : '🏦 Transfer'}</td>
                   <td className="text-right font-medium" style={{ color: 'var(--accent-red)' }}>{formatRupiah(exp.amount)}</td>
                   <td className="text-xs" style={{ color: 'var(--text-muted)' }}>{exp.description || '-'}</td>
                   <td className="text-right">
@@ -154,7 +161,7 @@ export default function ExpensesPage() {
                   </td>
                 </tr>
               ))}
-              {expenses.length === 0 && <tr><td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Belum ada pengeluaran</td></tr>}
+              {expenses.length === 0 && <tr><td colSpan={6} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Belum ada pengeluaran</td></tr>}
             </tbody>
           </table>
         </div>

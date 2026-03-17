@@ -54,20 +54,25 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let txnItems: any[] = [];
     try {
-      const { data } = await supabase
+      let txnItemsQuery = supabase
         .from('transaction_items')
-        .select('quantity, price, cost_price, transactions!inner(created_at)')
+        .select('quantity, price, cost_price, transactions!inner(created_at, store_id)')
         .gte('transactions.created_at', startUTC.toISOString())
         .lte('transactions.created_at', endUTC.toISOString());
+      // Apply store filter
+      if (storeId) {
+        txnItemsQuery = txnItemsQuery.eq('transactions.store_id', storeId);
+      }
+      const { data } = await txnItemsQuery;
       txnItems = data || [];
     } catch { /* */ }
 
     // Expenses (stored as date string, use WIB dates)
-    let exps: { amount: number; date: string; category: string }[] = [];
+    let exps: { amount: number; date: string; category: string; payment_method: string }[] = [];
     try {
       const { data } = await supabase
         .from('expenses')
-        .select('amount, date, category')
+        .select('amount, date, category, payment_method')
         .match(storeFilter)
         .gte('date', startDateWIB)
         .lte('date', endDateWIB);

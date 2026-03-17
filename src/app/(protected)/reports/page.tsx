@@ -49,7 +49,7 @@ export default function ReportsPage() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const txnItems: any[] = reportData.txnItems || [];
-    const exps: { amount: number; date: string; category: string }[] = reportData.expenses || [];
+    const exps: { amount: number; date: string; category: string; payment_method: string }[] = reportData.expenses || [];
     const transactions: { total: number; created_at: string; payment_method: string }[] = reportData.transactions || [];
 
     // Daily breakdown
@@ -99,6 +99,8 @@ export default function ReportsPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const totalCOGS = txnItems.reduce((s: number, item: any) => s + (Number(item.cost_price || 0) * Number(item.quantity)), 0);
     const totalExpenses = exps.reduce((s, e) => s + Number(e.amount), 0);
+    // Calculate cash expenses separately for accurate cash balance
+    const cashExpenses = exps.filter(e => e.payment_method === 'cash').reduce((s, e) => s + Number(e.amount), 0);
     const totalGrossProfit = totalIncome - totalCOGS;
     const totalNetProfit = totalGrossProfit - totalExpenses;
 
@@ -118,7 +120,7 @@ export default function ReportsPage() {
     return {
       dailyData: days,
       summary: {
-        income: totalIncome, cogs: totalCOGS, expenses: totalExpenses,
+        income: totalIncome, cogs: totalCOGS, expenses: totalExpenses, cashExpenses,
         grossProfit: totalGrossProfit, netProfit: totalNetProfit,
         txnCount: transactions.length,
         grossMargin: totalIncome > 0 ? (totalGrossProfit / totalIncome * 100) : 0,
@@ -202,14 +204,14 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 stagger-children">
             <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-green)' }}>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>💵 Saldo Kas (Cash)</p>
-              <p className="text-2xl font-bold mt-1" style={{ color: (paymentBreakdown.cash - summary.expenses) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                {formatRupiah(paymentBreakdown.cash - summary.expenses)}
+              <p className="text-2xl font-bold mt-1" style={{ color: (paymentBreakdown.cash - (summary.cashExpenses || 0)) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                {formatRupiah(paymentBreakdown.cash - (summary.cashExpenses || 0))}
               </p>
               <div className="flex gap-3 mt-1">
                 <span className="text-[10px]" style={{ color: 'var(--accent-green)' }}>💰 Masuk: {formatRupiah(paymentBreakdown.cash)}</span>
-                <span className="text-[10px]" style={{ color: 'var(--accent-red)' }}>💸 Keluar: {formatRupiah(summary.expenses)}</span>
+                <span className="text-[10px]" style={{ color: 'var(--accent-red)' }}>💸 Keluar: {formatRupiah(summary.cashExpenses || 0)}</span>
               </div>
-              <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Pemasukan cash − Pengeluaran kas</p>
+              <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Pemasukan cash − Pengeluaran cash saja</p>
             </div>
             <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-blue)' }}>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>🏦 Saldo Bank (QRIS + Transfer)</p>

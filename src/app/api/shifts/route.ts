@@ -7,7 +7,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('shifts')
       .select('*, users(name)')
-      .order('start_time', { ascending: false })
+      .order('opened_at', { ascending: false })
       .limit(50);
     if (error) throw error;
     return NextResponse.json(data || []);

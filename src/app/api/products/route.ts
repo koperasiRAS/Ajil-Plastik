@@ -7,13 +7,21 @@ export async function GET(req: NextRequest) {
   const page = parseInt(searchParams.get('page') || '1');
   const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
   const offset = (page - 1) * limit;
+  const storeId = searchParams.get('store_id'); // Optional: filter by store
 
   try {
-    const { data, error, count } = await supabase
+    let query = supabase
       .from('products')
       .select('*, categories(name)', { count: 'exact' })
       .order('name')
       .range(offset, offset + limit - 1);
+
+    // Filter by store if provided
+    if (storeId) {
+      query = query.eq('store_id', storeId);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) throw error;
     return NextResponse.json({
