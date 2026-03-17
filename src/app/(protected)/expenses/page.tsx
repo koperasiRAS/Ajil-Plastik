@@ -29,9 +29,11 @@ export default function ExpensesPage() {
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const { data: expenses = [], isLoading, refetch } = useQuery<Expense[]>({
-    queryKey: ['expenses', filterMonth],
+    queryKey: ['expenses', filterMonth, store?.id],
     queryFn: async () => {
-      const res = await authFetch(`/api/expenses?month=${filterMonth}`);
+      const params = new URLSearchParams({ month: filterMonth });
+      if (store?.id) params.append('store_id', store.id);
+      const res = await authFetch(`/api/expenses?${params}`);
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
       return Array.isArray(data) ? data : [];

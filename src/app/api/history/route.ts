@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const method = searchParams.get('method');
+  const storeId = searchParams.get('store_id');
   const page = parseInt(searchParams.get('page') || '1');
   const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100); // Max 100 per page
   const offset = (page - 1) * limit;
@@ -18,6 +19,8 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
+    // Filter by store if provided
+    if (storeId) query = query.eq('store_id', storeId);
     if (from) query = query.gte('created_at', new Date(from).toISOString());
     if (to) {
       const toDate = new Date(to);

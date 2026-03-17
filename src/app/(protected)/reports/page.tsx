@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { authFetch } from '@/lib/authFetch';
+import { useAuth } from '@/components/AuthProvider';
 
 interface DailyData {
   date: string;
@@ -15,6 +16,7 @@ interface DailyData {
 }
 
 export default function ReportsPage() {
+  const { store } = useAuth();
   const [period, setPeriod] = useState<'daily' | 'monthly'>('daily');
   const [month, setMonth] = useState(() => {
     const now = new Date();
@@ -22,9 +24,11 @@ export default function ReportsPage() {
   });
 
   const { data: reportData, isLoading } = useQuery({
-    queryKey: ['reports', month],
+    queryKey: ['reports', month, store?.id],
     queryFn: async () => {
-      const res = await authFetch(`/api/reports?month=${month}`);
+      const params = new URLSearchParams({ month });
+      if (store?.id) params.append('store_id', store.id);
+      const res = await authFetch(`/api/reports?${params}`);
       if (!res.ok) throw new Error('API error');
       return res.json();
     },

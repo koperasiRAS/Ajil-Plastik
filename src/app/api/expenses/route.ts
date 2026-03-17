@@ -5,12 +5,18 @@ export async function GET(req: NextRequest) {
   const supabase = await createServerSupabase();
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month'); // e.g. "2026-03"
+  const storeId = searchParams.get('store_id'); // Optional: filter by store
 
   try {
     let query = supabase
       .from('expenses')
       .select('*')
       .order('date', { ascending: false });
+
+    // Filter by store if provided
+    if (storeId) {
+      query = query.eq('store_id', storeId);
+    }
 
     // Server-side month filtering
     if (month) {

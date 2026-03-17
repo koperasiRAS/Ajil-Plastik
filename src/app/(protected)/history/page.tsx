@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { authFetch } from '@/lib/authFetch';
 import { Transaction } from '@/lib/types';
+import { useAuth } from '@/components/AuthProvider';
 
 interface TransactionWithItems extends Transaction {
   users: { name: string } | null;
@@ -11,19 +12,21 @@ interface TransactionWithItems extends Transaction {
 }
 
 export default function HistoryPage() {
+  const { store } = useAuth();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
 
   const { data: historyData, isLoading } = useQuery({
-    queryKey: ['history', page, dateFrom, dateTo],
+    queryKey: ['history', page, dateFrom, dateTo, store?.id],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set('page', page.toString());
       params.set('limit', '20');
       if (dateFrom) params.set('from', dateFrom);
       if (dateTo) params.set('to', dateTo);
+      if (store?.id) params.set('store_id', store.id);
       const res = await authFetch(`/api/history?${params.toString()}`);
       if (!res.ok) throw new Error('API error');
       return res.json();

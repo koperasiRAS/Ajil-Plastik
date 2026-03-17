@@ -5,6 +5,7 @@ import { authFetch } from '@/lib/authFetch';
 import { useQuery } from '@tanstack/react-query';
 import { formatRupiah } from '@/lib/format';
 import { LoadingCenter } from '@/components/LoadingSpinner';
+import { useAuth } from '@/components/AuthProvider';
 
 interface DashboardData {
   todaySales: number;
@@ -38,11 +39,13 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({ initialData }: DashboardClientProps) {
+  const { store } = useAuth();
 
   const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ['dashboard'],
+    queryKey: ['dashboard', store?.id],
     queryFn: async () => {
-      const res = await authFetch('/api/dashboard');
+      const params = store?.id ? `?store_id=${store.id}` : '';
+      const res = await authFetch(`/api/dashboard${params}`);
       if (!res.ok) throw new Error('API error');
       return res.json();
     },

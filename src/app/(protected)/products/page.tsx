@@ -10,9 +10,11 @@ import { exportToCSV } from '@/lib/exportCSV';
 import { AlertMessage, useAlert } from '@/components/AlertMessage';
 import { LoadingCenter } from '@/components/LoadingSpinner';
 import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
+import { useAuth } from '@/components/AuthProvider';
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
+  const { store } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
@@ -37,9 +39,12 @@ export default function ProductsPage() {
   const [newCategoryName, setNewCategoryName] = useState('');
 
   const { data: productsData, isLoading } = useQuery({
-    queryKey: ['products-page'],
+    queryKey: ['products-page', store?.id],
     queryFn: async () => {
-      const prodRes = await supabase.from('products').select('*, categories(name)').order('name');
+      // Filter by store_id if selected
+      const prodRes = store?.id
+        ? await supabase.from('products').select('*, categories(name)').eq('store_id', store.id).order('name')
+        : await supabase.from('products').select('*, categories(name)').order('name');
       let categories: Category[] = [];
       try {
         const catRes = await supabase.from('categories').select('*').order('name');

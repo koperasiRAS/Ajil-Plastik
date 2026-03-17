@@ -28,26 +28,43 @@ export async function GET(request: NextRequest) {
   const supabase = await createServerSupabase();
   const { searchParams } = new URL(request.url);
   const shiftId = searchParams.get('shift_id'); // Optional: filter by specific shift
+  const storeId = searchParams.get('store_id'); // Optional: filter by store/branch
 
   try {
     const { todayStartUTC } = getWIBToday();
     const todayISO = todayStartUTC.toISOString();
     const sevenDaysAgo = new Date(todayStartUTC.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Determine transaction filter based on shift_id
-    // If shift_id provided, filter by that shift; otherwise use today's date
-    const txnFilter = shiftId
-      ? supabase.from('transactions').select('total, payment_method').eq('shift_id', shiftId)
-      : supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO);
+    // Build store filter
+    const storeFilter = storeId ? { store_id: storeId } : {};
 
-    const recentFilter = shiftId
-      ? supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').eq('shift_id', shiftId).order('created_at', { ascending: false }).limit(5)
-      : supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').gte('created_at', todayISO).order('created_at', { ascending: false }).limit(5);
+    // Determine transaction filter based on shift_id or store_id
+    // If shift_id provided, filter by that shift; otherwise use today's date + store
+    let txnQuery = supabase.from('transactions').select('total, payment_method');
+    let recentQuery = supabase.from('transactions').select('id, total, created_at, payment_method, users(name)');
 
-    // For COGS and top products - filter by shift_id if provided
-    const cogsFilter = shiftId
-      ? supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id)').eq('transactions.shift_id', shiftId)
-      : supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)').gte('transactions.created_at', todayISO);
+    if (shiftId) {
+      txnQuery = txnQuery.eq('shift_id', shiftId);
+      recentQuery = recentQuery.eq('shift_id', shiftId);
+    } else {
+      txnQuery = txnQuery.gte('created_at', todayISO);
+      recentQuery = recentQuery.gte('created_at', todayISO);
+    }
+
+    // Apply store filter to transactions
+    if (Object.keys(storeFilter).length > 0) {
+      txnQuery = txnQuery.match(storeFilter);
+      recentQuery = recentQuery.match(storeFilter);
+    }
+
+    // For COGS - filter by shift_id or date
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let cogsQuery: any = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at)');
+    if (shiftId) {
+      cogsQuery = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id)').eq('transactions.shift_id', shiftId);
+    } else {
+      cogsQuery = cogsQuery.gte('transactions.created_at', todayISO);
+    }
 
     // ALL queries in parallel for maximum performance!
     const [
@@ -60,16 +77,26 @@ export async function GET(request: NextRequest) {
       topProductsRes,
       shiftRes
     ] = await Promise.all([
-      txnFilter,
-      supabase.from('products').select('id', { count: 'exact', head: true }),
-      supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
-      recentFilter,
-      // Use created_at instead of date for consistent timezone handling
-      supabase.from('expenses').select('amount').gte('created_at', todayISO),
-      cogsFilter,
+      txnQuery,
+      // Products filtered by store
+      storeId
+        ? supabase.from('products').select('id', { count: 'exact', head: true }).eq('store_id', storeId)
+        : supabase.from('products').select('id', { count: 'exact', head: true }),
+      // Low stock filtered by store
+      storeId
+        ? supabase.from('products').select('id', { count: 'exact', head: true }).eq('store_id', storeId).lte('stock', 5)
+        : supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
+      recentQuery.order('created_at', { ascending: false }).limit(5),
+      // Expenses filtered by store
+      storeId
+        ? supabase.from('expenses').select('amount').eq('store_id', storeId).gte('created_at', todayISO)
+        : supabase.from('expenses').select('amount').gte('created_at', todayISO),
+      cogsQuery,
       supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo),
-      // Get current open shift for cash balance calculation
-      supabase.from('shifts').select('opening_cash').eq('status', 'open').order('opened_at', { ascending: false }).limit(1),
+      // Get current open shift for cash balance calculation (filtered by store if provided)
+      storeId
+        ? supabase.from('shifts').select('opening_cash').eq('status', 'open').eq('store_id', storeId).order('opened_at', { ascending: false }).limit(1)
+        : supabase.from('shifts').select('opening_cash').eq('status', 'open').order('opened_at', { ascending: false }).limit(1),
     ]);
 
     // Get opening cash from current shift

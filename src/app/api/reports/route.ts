@@ -34,14 +34,19 @@ export async function GET(req: NextRequest) {
   const supabase = await createServerSupabase();
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month') || getCurrentMonthWIB();
+  const storeId = searchParams.get('store_id'); // Optional: filter by store
 
   try {
     const { startUTC, endUTC, startDateWIB, endDateWIB } = getWIBMonthRange(month);
+
+    // Build store filter
+    const storeFilter = storeId ? { store_id: storeId } : {};
 
     // Transactions
     const { data: txns } = await supabase
       .from('transactions')
       .select('total, created_at, payment_method')
+      .match(storeFilter)
       .gte('created_at', startUTC.toISOString())
       .lte('created_at', endUTC.toISOString());
 
@@ -63,6 +68,7 @@ export async function GET(req: NextRequest) {
       const { data } = await supabase
         .from('expenses')
         .select('amount, date, category')
+        .match(storeFilter)
         .gte('date', startDateWIB)
         .lte('date', endDateWIB);
       exps = data || [];
