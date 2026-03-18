@@ -110,9 +110,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (configError) return;
 
     let mounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     // Get initial session
     const initAuth = async () => {
+      // Set a timeout to stop waiting after 5 seconds
+      timeoutId = setTimeout(() => {
+        if (mounted && loading) {
+          console.warn('Auth initialization timeout, continuing...');
+          setLoading(false);
+          initDone.current = true;
+        }
+      }, 5000);
+
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!mounted) return;
@@ -144,6 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try { await supabase.auth.signOut(); } catch { /* ignore */ }
         setSession(null);
       } finally {
+        // Clear the timeout
+        if (timeoutId) clearTimeout(timeoutId);
         if (mounted) {
           setLoading(false);
           initDone.current = true;
@@ -178,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

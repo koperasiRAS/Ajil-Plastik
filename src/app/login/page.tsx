@@ -13,17 +13,26 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showLoginForm, setShowLoginForm] = useState(false);
 
-  // If already logged in AND user profile is loaded, redirect to POS
-  // Wait for role to be ready to avoid redirect loop
+  // Show login form immediately with skeleton, redirect if already logged in
   useEffect(() => {
-    if (!authLoading && session) {
-      // Small delay to ensure user profile is loaded
-      const timer = setTimeout(() => {
+    // Show form after a short delay to allow auth to initialize
+    const timer = setTimeout(() => {
+      setShowLoginForm(true);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // If already logged in, redirect to POS (with timeout to prevent infinite waiting)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (session && !authLoading) {
         router.replace('/pos');
-      }, 100);
-      return () => clearTimeout(timer);
-    }
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, [session, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,13 +62,25 @@ export default function LoginPage() {
     localStorage.setItem('pos-theme', next);
   };
 
-  // Show loading if auth is still initializing
-  if (authLoading) {
+  // Show loading skeleton while waiting for form (or if auth still loading after form shows)
+  // This ensures the form appears quickly even on slow browsers like Brave
+  if (!showLoginForm) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-        <div className="flex flex-col items-center gap-3 animate-fade-in">
-          <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-teal)', borderTopColor: 'transparent' }} />
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Memuat...</p>
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg-primary)' }}>
+        <div className="w-full max-w-sm">
+          {/* Logo skeleton */}
+          <div className="text-center mb-8">
+            <div className="w-36 h-36 mx-auto mb-4 rounded-xl animate-pulse" style={{ background: 'var(--bg-card)' }} />
+            <div className="h-6 w-32 mx-auto rounded animate-pulse" style={{ background: 'var(--bg-card)' }} />
+          </div>
+          {/* Form skeleton */}
+          <div className="glass-card p-6 space-y-4">
+            <div className="h-4 w-16 rounded animate-pulse" style={{ background: 'var(--bg-input)' }} />
+            <div className="h-10 rounded animate-pulse" style={{ background: 'var(--bg-input)' }} />
+            <div className="h-4 w-20 rounded animate-pulse" style={{ background: 'var(--bg-input)' }} />
+            <div className="h-10 rounded animate-pulse" style={{ background: 'var(--bg-input)' }} />
+            <div className="h-12 rounded-lg animate-pulse" style={{ background: 'var(--accent-teal)', opacity: 0.3 }} />
+          </div>
         </div>
       </div>
     );
