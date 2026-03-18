@@ -42,10 +42,20 @@ export default function ProductsPage() {
   const { data: productsData, isLoading } = useQuery({
     queryKey: ['products-page', store?.id],
     queryFn: async () => {
-      // Filter by store_id if selected
-      const prodRes = store?.id
-        ? await supabase.from('products').select('*, categories(name)').eq('store_id', store.id).order('name')
-        : await supabase.from('products').select('*, categories(name)').order('name');
+      // For owners: show all products (store-specific + shared products with null store_id)
+      // For employees: show products matching current store OR shared products (null store_id)
+      let prodRes;
+      if (store?.id) {
+        // Use .or() to include both store-specific products and shared products (null store_id)
+        prodRes = await supabase
+          .from('products')
+          .select('*, categories(name)')
+          .or(`store_id.eq.${store.id},store_id.is.null`)
+          .order('name');
+      } else {
+        // No store selected - show all products
+        prodRes = await supabase.from('products').select('*, categories(name)').order('name');
+      }
       let categories: Category[] = [];
       try {
         const catRes = await supabase.from('categories').select('*').order('name');
@@ -109,10 +119,16 @@ export default function ProductsPage() {
         name, barcode, cost_price: Number.parseFloat(costPrice) || 0,
         price: Number.parseFloat(price), stock: Number.parseInt(stock),
         image_url: imageUrl, category_id: categoryId || null,
+        store_id: store?.id || null, // Associate product with current store
       };
 
       if (editingProduct) {
-        const { error } = await supabase.from('products').update(productData).eq('id', editingProduct.id);
+        // When editing, preserve the store_id if not provided
+        const updateData = {
+          ...productData,
+          store_id: editingProduct.store_id || store?.id || null,
+        };
+        const { error } = await supabase.from('products').update(updateData).eq('id', editingProduct.id);
         if (error) throw error;
         setAlert('success', '✓ Produk berhasil diperbarui');
       } else {
