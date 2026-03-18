@@ -31,7 +31,6 @@ export interface Product {
   price: number;
   cost_price: number;
   stock: number;
-  image_url: string | null;
   category_id: string | null;
   store_id: string | null;  // Link to store/branch
   created_at: string;

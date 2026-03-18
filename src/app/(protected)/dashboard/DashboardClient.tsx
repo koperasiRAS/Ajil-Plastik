@@ -74,7 +74,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     <div className="p-4 lg:p-6 max-w-6xl mx-auto" style={{ background: 'var(--bg-primary)', minHeight: '100vh' }}>
       <div className="flex items-center gap-3 mb-6 animate-fade-in">
         <div className="w-10 h-10 relative">
-          <Image src="/logo.png" alt="Logo" fill sizes="40px" priority className="object-contain" />
+          <Image src="/logo.png" alt="Logo" fill sizes="40px" className="object-contain" />
         </div>
         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Dashboard</h1>
       </div>

@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     let query = supabase
       .from('products')
-      .select('id, name, stock, barcode, category_id, cost_price, price, image_url, categories(name)')
+      .select('id, name, stock, barcode, category_id, cost_price, price, categories(name)')
       .order('stock', { ascending: true });
 
     // Filter by store if provided
@@ -19,7 +19,10 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query;
     if (error) throw error;
-    return NextResponse.json(data || []);
+    const response = NextResponse.json(data || []);
+    // Cache for 60 seconds
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+    return response;
   } catch (err) {
     console.error('Inventory API error:', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });

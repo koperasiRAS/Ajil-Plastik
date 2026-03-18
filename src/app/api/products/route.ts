@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) throw error;
-    return NextResponse.json({
+    const response = NextResponse.json({
       data: data || [],
       pagination: {
         page,
@@ -33,6 +33,11 @@ export async function GET(req: NextRequest) {
         totalPages: Math.ceil((count || 0) / limit),
       },
     });
+
+    // Cache for 60 seconds on CDN - products don't change that frequently
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+
+    return response;
   } catch (err) {
     console.error('Products API error:', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });

@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import Image from 'next/image';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Product, Category } from '@/lib/types';
-import { uploadProductImage } from '@/lib/imageUpload';
 import { formatRupiah } from '@/lib/format';
 import { exportToCSV } from '@/lib/exportCSV';
 import { AlertMessage, useAlert } from '@/components/AlertMessage';
@@ -19,7 +17,6 @@ export default function ProductsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const { alert, setAlert, clearAlert } = useAlert();
   const [filterCategory, setFilterCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,10 +28,6 @@ export default function ProductsPage() {
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imageObjectUrl, setImageObjectUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -73,9 +66,7 @@ export default function ProductsPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['products-page'] });
 
   const resetForm = () => {
-    if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
     setName(''); setBarcode(''); setCostPrice(''); setPrice(''); setStock(''); setCategoryId('');
-    setImagePreview(null); setImageFile(null); setImageObjectUrl(null);
     setEditingProduct(null); setShowForm(false);
   };
 
@@ -84,22 +75,7 @@ export default function ProductsPage() {
     setName(product.name); setBarcode(product.barcode);
     setCostPrice(String(product.cost_price || 0)); setPrice(String(product.price));
     setStock(String(product.stock)); setCategoryId(product.category_id || '');
-    setImagePreview(product.image_url || null); setImageFile(null);
     setShowForm(true);
-  };
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setAlert('error', 'Ukuran file maksimal 5MB');
-      return;
-    }
-    if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl);
-    const newObjectUrl = URL.createObjectURL(file);
-    setImageFile(file);
-    setImagePreview(newObjectUrl);
-    setImageObjectUrl(newObjectUrl);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,18 +83,10 @@ export default function ProductsPage() {
     setSaving(true); clearAlert();
 
     try {
-      let imageUrl = editingProduct?.image_url || null;
-      if (imageFile) {
-        setUploading(true);
-        const tempId = editingProduct?.id || crypto.randomUUID();
-        imageUrl = await uploadProductImage(imageFile, tempId);
-        setUploading(false);
-      }
-
       const productData = {
         name, barcode, cost_price: Number.parseFloat(costPrice) || 0,
         price: Number.parseFloat(price), stock: Number.parseInt(stock),
-        image_url: imageUrl, category_id: categoryId || null,
+        category_id: categoryId || null,
         store_id: store?.id || null, // Associate product with current store
       };
 
@@ -142,7 +110,7 @@ export default function ProductsPage() {
       broadcastCacheInvalidation(['products']);
     } catch (err) {
       setAlert('error', err instanceof Error ? err.message : 'Gagal menyimpan');
-    } finally { setSaving(false); setUploading(false); }
+    } finally { setSaving(false); }
   };
 
   const archiveProduct = async (id: string, productName: string) => {
@@ -246,33 +214,6 @@ export default function ProductsPage() {
             {editingProduct ? '✏️ Edit Produk' : '➕ Tambah Produk Baru'}
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs mb-2" style={{ color: 'var(--text-muted)' }}>📸 Foto Produk</label>
-              <div className="flex items-center gap-4">
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-32 h-32 rounded-xl flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 overflow-hidden"
-                  style={{ background: 'var(--bg-input)', border: '2px dashed var(--border-hover)' }}
-                >
-                  {imagePreview ? (
-                    <Image src={imagePreview} alt="Preview" fill className="object-cover" />
-                  ) : (
-                    <div className="text-center">
-                      <span className="text-2xl">📷</span>
-                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Upload</p>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Klik untuk upload foto</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Format: JPG, PNG, WebP (maks 5MB)</p>
-                  {uploading && <p className="text-xs mt-1" style={{ color: 'var(--accent-blue)' }}>⏳ Mengupload...</p>}
-                </div>
-                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
-                  onChange={handleImageSelect} className="hidden" />
-              </div>
-            </div>
-
             <div><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Nama Produk *</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} required className="input-field" placeholder="Cth: Indomie Goreng" /></div>
             <div><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Barcode *</label>
@@ -283,15 +224,15 @@ export default function ProductsPage() {
               <input type="number" value={price} onChange={e => setPrice(e.target.value)} required min="0" className="input-field" placeholder="Harga jual" /></div>
             <div><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Stok Awal *</label>
               <input type="number" value={stock} onChange={e => setStock(e.target.value)} required min="0" className="input-field" /></div>
-            <div className="col-span-2"><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Kategori</label>
+            <div><label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Kategori</label>
               <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input-field">
                 <option value="">Pilih kategori...</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select></div>
 
             <div className="col-span-2 flex gap-2">
-              <button type="submit" disabled={saving || uploading} className="btn-primary">
-                {uploading ? '⏳ Upload...' : saving ? 'Menyimpan...' : editingProduct ? 'Perbarui' : 'Simpan'}
+              <button type="submit" disabled={saving} className="btn-primary">
+                {saving ? 'Menyimpan...' : editingProduct ? 'Perbarui' : 'Simpan'}
               </button>
               <button type="button" onClick={resetForm} className="px-4 py-2 rounded-lg text-sm"
                 style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}>Batal</button>

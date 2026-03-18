@@ -4,12 +4,12 @@ import { QueryClient } from '@tanstack/react-query';
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Data is considered fresh for 5 seconds (reduced from 30s for better real-time)
-      staleTime: 5 * 1000,
-      // Keep unused data in cache for 2 minutes
-      gcTime: 2 * 60 * 1000,
+      // Data is considered fresh for 30 seconds to reduce server load and data transfer
+      staleTime: 30 * 1000,
+      // Keep unused data in cache for 1 minute - shorter to save memory
+      gcTime: 60 * 1000,
       // Refetch on window focus for better data sync across tabs
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false, // Disabled to save data on tab switch
       // Retry failed requests once
       retry: 1,
     },

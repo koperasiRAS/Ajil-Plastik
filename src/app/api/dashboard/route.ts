@@ -96,7 +96,11 @@ export async function GET(request: NextRequest) {
         ? supabase.from('expenses').select('amount').eq('store_id', storeId).gte('created_at', todayISO)
         : supabase.from('expenses').select('amount').gte('created_at', todayISO),
       cogsQuery,
-      supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo),
+      // Optimized: Only fetch last 500 transaction items for top products (much lighter)
+      supabase.from('transaction_items')
+        .select('quantity, products(name), transactions!inner(created_at)')
+        .gte('transactions.created_at', sevenDaysAgo)
+        .limit(500),
       // Get current open shift for cash balance calculation (filtered by store if provided)
       storeId
         ? supabase.from('shifts').select('opening_cash').eq('status', 'open').eq('store_id', storeId).order('opened_at', { ascending: false }).limit(1)
@@ -151,13 +155,18 @@ export async function GET(request: NextRequest) {
       if (method in salesByPayment) salesByPayment[method] += Number(t.total);
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       todaySales, todayTransactions: todayTxns.length,
       totalProducts: productsRes.count || 0, lowStockCount: lowStockRes.count || 0,
       todayExpenses, todayCOGS, todayGrossProfit, todayNetProfit, grossMargin,
       recentTransactions: recentRes.data || [], topProducts, salesByPayment,
       openingCash,
     });
+
+    // Cache for 30 seconds on CDN, allow stale for 60 seconds while revalidating
+    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+
+    return response;
   } catch (err) {
     console.error('Dashboard API error:', err);
     return NextResponse.json({ error: 'Failed to load dashboard' }, { status: 500 });
