@@ -62,7 +62,7 @@ export default async function DashboardPage() {
       supabase.from('products').select('id', { count: 'exact', head: true }),
       supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
       recentQuery,
-      supabase.from('expenses').select('amount').gte('created_at', todayISO),
+      supabase.from('expenses').select('amount, payment_method').gte('created_at', todayISO),
       // COGS filtered by shift if active
       activeShiftId
         ? supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id)').eq('transactions.shift_id', activeShiftId)
@@ -74,8 +74,14 @@ export default async function DashboardPage() {
     // openingCash is already fetched above with activeShiftData
 
     let todayExpenses = 0;
+    let todayCashExpenses = 0;
     try {
-      todayExpenses = (expensesRes.data || []).reduce((s: number, e: { amount: number }) => s + Number(e.amount), 0);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (expensesRes.data || []).forEach((e: any) => {
+        const amt = Number(e.amount);
+        todayExpenses += amt;
+        if (e.payment_method === 'cash') todayCashExpenses += amt;
+      });
     } catch { /* empty */ }
 
     let todayCOGS = 0;
@@ -118,6 +124,7 @@ export default async function DashboardPage() {
       totalProducts: productsRes.count || 0,
       lowStockCount: lowStockRes.count || 0,
       todayExpenses,
+      todayCashExpenses,
       todayCOGS,
       todayGrossProfit,
       todayNetProfit,

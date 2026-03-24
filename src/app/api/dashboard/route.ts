@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     // If shift_id provided, filter by that shift; otherwise use today's date + store
     // IMPORTANT: Add limit to prevent fetching too much data
     let txnQuery = supabase.from('transactions').select('total, payment_method').limit(1000);
-    let recentQuery = supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(10);
+    let recentQuery = supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(5);
 
     if (shiftId) {
       txnQuery = txnQuery.eq('shift_id', shiftId);
@@ -92,11 +92,11 @@ export async function GET(request: NextRequest) {
       storeId
         ? supabase.from('products').select('id', { count: 'exact', head: true }).eq('store_id', storeId).lte('stock', 5)
         : supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
-      recentQuery.order('created_at', { ascending: false }).limit(5),
-      // Expenses filtered by store
+      recentQuery, // Already has .order().limit(5) from above — no duplicate
+      // Expenses filtered by store — select payment_method to split cash vs non-cash
       storeId
-        ? supabase.from('expenses').select('amount').eq('store_id', storeId).gte('created_at', todayISO)
-        : supabase.from('expenses').select('amount').gte('created_at', todayISO),
+        ? supabase.from('expenses').select('amount, payment_method').eq('store_id', storeId).gte('created_at', todayISO)
+        : supabase.from('expenses').select('amount, payment_method').gte('created_at', todayISO),
       cogsQuery,
       // Optimized: Only fetch last 500 transaction items for top products (much lighter)
       supabase.from('transaction_items')
@@ -115,10 +115,16 @@ export async function GET(request: NextRequest) {
       openingCash = Number(shiftRes.data[0].opening_cash) || 0;
     }
 
-    // Process expenses
+    // Process expenses — split cash vs non-cash to accurately calculate cash balance
     let todayExpenses = 0;
+    let todayCashExpenses = 0;
     try {
-      todayExpenses = (expensesRes.data || []).reduce((s: number, e: { amount: number }) => s + Number(e.amount), 0);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (expensesRes.data || []).forEach((e: any) => {
+        const amt = Number(e.amount);
+        todayExpenses += amt;
+        if (e.payment_method === 'cash') todayCashExpenses += amt;
+      });
     } catch { /* */ }
 
     // Process COGS
@@ -160,13 +166,13 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.json({
       todaySales, todayTransactions: todayTxns.length,
       totalProducts: productsRes.count || 0, lowStockCount: lowStockRes.count || 0,
-      todayExpenses, todayCOGS, todayGrossProfit, todayNetProfit, grossMargin,
+      todayExpenses, todayCashExpenses, todayCOGS, todayGrossProfit, todayNetProfit, grossMargin,
       recentTransactions: recentRes.data || [], topProducts, salesByPayment,
       openingCash,
     });
 
-    // Cache for 30 seconds on CDN, allow stale for 60 seconds while revalidating
-    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+    // Cache for 10s on CDN, allow stale for 30s while revalidating in background
+    response.headers.set('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
 
     return response;
   } catch (err) {

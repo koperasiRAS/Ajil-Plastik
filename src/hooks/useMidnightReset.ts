@@ -65,48 +65,45 @@ export function useMidnightReset(options: MidnightResetOptions = {}) {
       const closingTime = new Date().toISOString();
 
       for (const shift of openShifts) {
-        // Calculate expected closing cash: opening_cash + cash sales from transactions
-        let closingCash = Number(shift.opening_cash) || 0;
-
-        // Get today's cash transactions for this shift
-        const today = new Date();
-        const wibOffset = 7 * 60 * 60 * 1000;
-        const wibToday = new Date(today.getTime() + wibOffset);
-
-        // Start of today in UTC (midnight UTC = 07:00 WIB)
-        const todayStart = new Date(Date.UTC(
-          wibToday.getUTCFullYear(),
-          wibToday.getUTCMonth(),
-          wibToday.getUTCDate(),
-          0, 0, 0, 0
-        )).toISOString();
-
+        // Get all cash transactions for this shift
         const { data: transactions } = await supabase
           .from('transactions')
           .select('total')
           .eq('shift_id', shift.id)
+          .eq('payment_method', 'cash');
+
+        // Get cash expenses that occurred since shift opened
+        const { data: cashExpenses } = await supabase
+          .from('expenses')
+          .select('amount')
           .eq('payment_method', 'cash')
-          .gte('created_at', todayStart);
+          .gte('created_at', shift.opened_at);
 
-        if (transactions) {
-          const cashSales = transactions.reduce((sum, t) => sum + Number(t.total), 0);
-          closingCash += cashSales;
-        }
+        const cashSales = (transactions || []).reduce((sum, t) => sum + Number(t.total), 0);
+        const cashOut = (cashExpenses || []).reduce((sum, e) => sum + Number(e.amount), 0);
 
-        // Update shift to closed
+        // SOP formula: Ekspektasi Kas = Kas Awal + Cash Masuk - Cash Keluar
+        const expectedClosingCash = Number(shift.opening_cash) + cashSales - cashOut;
+        // Auto-close: assume closing cash = expected (no physical count, so variance = 0)
+        const closingCash = expectedClosingCash;
+
+        // Update shift to closed with all SOP fields
         const { error: updateError } = await supabase
           .from('shifts')
           .update({
             closing_cash: closingCash,
             closed_at: closingTime,
-            status: 'closed'
+            status: 'closed',
+            expected_closing_cash: expectedClosingCash,
+            cash_variance: 0, // Cannot verify physical cash at midnight auto-close
+            notes: 'Auto-close oleh sistem (midnight reset) — selisih tidak terverifikasi',
           })
           .eq('id', shift.id);
 
         if (updateError) {
           console.error(`Error closing shift ${shift.id}:`, updateError);
         } else {
-          console.log(`Shift ${shift.id} closed with cash: ${closingCash}`);
+          console.log(`Shift ${shift.id} auto-closed. Expected: ${expectedClosingCash}`);
         }
       }
 

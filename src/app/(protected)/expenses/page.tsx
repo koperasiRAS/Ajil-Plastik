@@ -39,6 +39,8 @@ export default function ExpensesPage() {
       const data = await res.json();
       return Array.isArray(data) ? data : [];
     },
+    staleTime: 2 * 60 * 1000, // Cache 2 menit — instant on tab switch
+    placeholderData: (prev) => prev,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,6 +56,7 @@ export default function ExpensesPage() {
       setCategory(''); setAmount(''); setDescription(''); setShowForm(false);
       // Invalidate dashboard to reflect new expense
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['shift-summary'] }); // Update live shift summary
       broadcastCacheInvalidation(['dashboard']);
       refetch();
     } catch (err) {
@@ -70,6 +73,7 @@ export default function ExpensesPage() {
     }
     // Invalidate dashboard to reflect deleted expense
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['shift-summary'] }); // Update live shift summary
     broadcastCacheInvalidation(['dashboard']);
     refetch();
   };

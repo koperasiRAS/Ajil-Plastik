@@ -26,6 +26,7 @@ export default function EmployeesPage() {
       const data = await res.json();
       return Array.isArray(data) ? data : [];
     },
+    staleTime: 5 * 60 * 1000, // Cache 5 menit — data karyawan jarang berubah
   });
 
   const resetForm = () => {

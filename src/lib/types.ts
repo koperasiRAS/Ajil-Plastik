@@ -61,12 +61,16 @@ export interface TransactionItem {
 export interface Shift {
   id: string;
   user_id: string;
-  store_id: string | null;  // Link to store/branch
+  store_id: string | null;
   opening_cash: number;
   closing_cash: number | null;
   opened_at: string;
   closed_at: string | null;
   status: 'open' | 'closed';
+  // SOP fields (added for cash variance tracking)
+  notes: string | null;
+  cash_variance: number | null;       // Kas Akhir - Ekspektasi (0 = perfect, ±  = selisih)
+  expected_closing_cash: number | null; // Kas Awal + Cash Masuk - Cash Keluar
 }
 
 export interface StockLog {

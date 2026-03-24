@@ -31,7 +31,9 @@ export default function HistoryPage() {
       if (!res.ok) throw new Error('API error');
       return res.json();
     },
-    placeholderData: (prev) => prev, // Keep previous data while loading
+    placeholderData: (prev) => prev, // Keep previous data while loading new page
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes — instant when switching tabs
+    refetchOnMount: false, // Don't refetch if cache is still fresh
   });
 
   const transactions: TransactionWithItems[] = Array.isArray(historyData?.data) ? historyData.data : [];
@@ -47,7 +49,9 @@ export default function HistoryPage() {
       new Date(t.created_at).toLocaleString('id-ID'), t.users?.name || '-', t.total,
       t.payment_method, t.discount, t.transaction_items.length,
     ]);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    // Quote all values to prevent commas in names from breaking CSV columns
+    const csvLine = (row: (string | number)[]) => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    const csv = [csvLine(headers), ...rows.map(csvLine)].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `riwayat_penjualan.csv`; a.click();

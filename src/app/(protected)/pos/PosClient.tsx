@@ -215,10 +215,6 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       setCart([]); setDiscount(''); setCashReceived(''); setPaymentMethod('cash');
       setCheckingOut(false);
 
-      // Invalidate dashboard to reflect new transaction immediately
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      broadcastCacheInvalidation(['dashboard']);
-
       // Update stock in DB - wait for it to complete to ensure data consistency
       // Use Promise.allSettled to not fail if one update fails
       const stockUpdateResults = await Promise.allSettled(currentCart.map(item =>
@@ -238,7 +234,7 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
         }
       });
 
-      // Fix data delay: invalidate queries to refresh dashboard and other pages immediately
+      // Invalidate ALL queries AFTER stock update completes — dashboard shows accurate data
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['products-page'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -248,6 +244,7 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       queryClient.invalidateQueries({ queryKey: ['history'] });
 
       // Broadcast to other tabs
+      broadcastCacheInvalidation(['dashboard']);
       broadcastCacheInvalidation(['products']);
       broadcastCacheInvalidation(['products-page']);
       broadcastCacheInvalidation(['history']);

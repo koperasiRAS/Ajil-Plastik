@@ -114,14 +114,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Get initial session
     const initAuth = async () => {
-      // Set a timeout to stop waiting after 5 seconds
+      // Set a timeout to stop waiting after 2.5 seconds (reduced from 5s for faster load)
       timeoutId = setTimeout(() => {
         if (mounted && loading) {
           console.warn('Auth initialization timeout, continuing...');
           setLoading(false);
           initDone.current = true;
         }
-      }, 5000);
+      }, 2500);
 
       try {
         const { data: { session }, error } = await supabase.auth.getSession();

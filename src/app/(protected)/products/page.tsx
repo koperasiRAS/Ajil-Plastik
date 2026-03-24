@@ -34,15 +34,22 @@ export default function ProductsPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  const { data: productsData, isLoading, refetch } = useQuery({
+  // Separate categories query — they rarely change, cache aggressively
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const catRes = await supabase.from('categories').select('*').order('name');
+      return (catRes.data as Category[]) || [];
+    },
+    staleTime: 10 * 60 * 1000, // Categories cached 10 minutes
+  });
+
+  const { data: productsData, isLoading } = useQuery({
     queryKey: ['products-page', store?.id, currentPage],
     queryFn: async () => {
       const offset = (currentPage - 1) * PRODUCTS_PER_PAGE;
-      // For owners: show all products (store-specific + shared products with null store_id)
-      // For employees: show products matching current store OR shared products (null store_id)
       let prodRes;
       if (store?.id) {
-        // Use .or() to include both store-specific products and shared products (null store_id)
         prodRes = await supabase
           .from('products')
           .select('*, categories(name)', { count: 'exact' })
@@ -50,25 +57,27 @@ export default function ProductsPage() {
           .order('name')
           .range(offset, offset + PRODUCTS_PER_PAGE - 1);
       } else {
-        // No store selected - show all products
-        prodRes = await supabase.from('products').select('*, categories(name)').order('name');
+        prodRes = await supabase
+          .from('products')
+          .select('*, categories(name)', { count: 'exact' })
+          .order('name')
+          .range(offset, offset + PRODUCTS_PER_PAGE - 1);
       }
-      let categories: Category[] = [];
-      try {
-        const catRes = await supabase.from('categories').select('*').order('name');
-        categories = (catRes.data as Category[]) || [];
-      } catch { /* ignore */ }
       return {
         products: (prodRes.data as Product[]) || [],
-        categories,
         count: prodRes.count || 0,
       };
     },
+    staleTime: 2 * 60 * 1000, // Products cached 2 minutes
+    placeholderData: (prev) => prev, // Keep previous page visible while loading next
   });
 
   const products = productsData?.products || [];
-  const categories = productsData?.categories || [];
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['products-page'] });
+  const categories = categoriesData || [];
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['products-page'] });
+    queryClient.invalidateQueries({ queryKey: ['categories'] });
+  };
 
   const resetForm = () => {
     setName(''); setBarcode(''); setCostPrice(''); setPrice(''); setStock(''); setCategoryId('');

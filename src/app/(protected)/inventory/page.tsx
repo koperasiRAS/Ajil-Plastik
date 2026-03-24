@@ -18,21 +18,19 @@ export default function InventoryPage() {
   const { data: inventoryData, isLoading } = useQuery({
     queryKey: ['inventory', store?.id],
     queryFn: async () => {
-      // Filter by store_id - include products with matching store_id OR null (shared products)
       let productsQuery = supabase.from('products').select('*, categories(name)').order('name');
       if (store?.id) {
         productsQuery = productsQuery.or(`store_id.eq.${store.id},store_id.is.null`);
       }
-
-      // Filter logs by store
       let logsQuery = supabase.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(50);
-
       const [productsRes, logsRes] = await Promise.all([productsQuery, logsQuery]);
       return {
         products: (productsRes.data as Product[]) || [],
         stockLogs: logsRes.data || [],
       };
     },
+    staleTime: 2 * 60 * 1000, // Cache 2 menit
+    placeholderData: (prev) => prev,
   });
 
   const products = inventoryData?.products || [];

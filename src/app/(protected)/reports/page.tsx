@@ -32,6 +32,8 @@ export default function ReportsPage() {
       if (!res.ok) throw new Error('API error');
       return res.json();
     },
+    staleTime: 5 * 60 * 1000, // Cache 5 menit — laporan bulanan jarang berubah
+    placeholderData: (prev) => prev,
   });
 
   // Process data with useMemo to avoid recalculation on re-renders

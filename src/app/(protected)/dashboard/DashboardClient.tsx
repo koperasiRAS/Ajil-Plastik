@@ -13,6 +13,7 @@ interface DashboardData {
   totalProducts: number;
   lowStockCount: number;
   todayExpenses: number;
+  todayCashExpenses: number;    // Cash-only expenses (pengeluaran bayar cash)
   todayCOGS: number;
   todayGrossProfit: number;
   todayNetProfit: number;
@@ -27,7 +28,7 @@ interface DashboardData {
 
 const emptyDashboard: DashboardData = {
   todaySales: 0, todayTransactions: 0, totalProducts: 0,
-  lowStockCount: 0, todayExpenses: 0, todayCOGS: 0,
+  lowStockCount: 0, todayExpenses: 0, todayCashExpenses: 0, todayCOGS: 0,
   todayGrossProfit: 0, todayNetProfit: 0, grossMargin: 0,
   recentTransactions: [], topProducts: [],
   salesByPayment: { cash: 0, qris: 0, transfer: 0 },
@@ -51,10 +52,10 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     },
     // Use initial data from SSR to populate cache initially
     initialData: initialData || emptyDashboard,
-    // Consider data fresh for 5 minutes to reduce server load
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    // Refresh every 5 minutes (disabled by default, enable if needed)
-    // refetchInterval: false, // Disabled to save bandwidth
+    // Consider data fresh for 60 seconds — fast enough to catch new transactions
+    staleTime: 60 * 1000,
+    // Always refetch on mount so navigating back to dashboard shows latest data
+    refetchOnMount: true,
     // Don't refetch on window focus - prevents unnecessary load
     refetchOnWindowFocus: false,
   });
@@ -130,17 +131,17 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
       {/* Saldo Kas & Saldo Bank */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 mb-6 stagger-children">
-        <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-green)' }}>
+          <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-green)' }}>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>💵 Saldo Kas (Cash)</p>
-          <p className="text-2xl font-bold mt-1" style={{ color: (d.openingCash + d.salesByPayment.cash - d.todayExpenses) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-            {formatRupiah(d.openingCash + d.salesByPayment.cash - d.todayExpenses)}
+          <p className="text-2xl font-bold mt-1" style={{ color: (d.openingCash + d.salesByPayment.cash - d.todayCashExpenses) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+            {formatRupiah(d.openingCash + d.salesByPayment.cash - d.todayCashExpenses)}
           </p>
           <div className="flex gap-3 mt-1 flex-wrap">
             <span className="text-[10px]" style={{ color: 'var(--accent-green)' }}>📥 Buka: {formatRupiah(d.openingCash)}</span>
             <span className="text-[10px]" style={{ color: 'var(--accent-green)' }}>💰 Jual: {formatRupiah(d.salesByPayment.cash)}</span>
-            <span className="text-[10px]" style={{ color: 'var(--accent-red)' }}>💸 Keluar: {formatRupiah(d.todayExpenses)}</span>
+            <span className="text-[10px]" style={{ color: 'var(--accent-red)' }}>💸 Keluar: {formatRupiah(d.todayCashExpenses)}</span>
           </div>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Kas buka + Penjualan cash − Pengeluaran</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Kas buka + Penjualan cash − Pengeluaran cash saja</p>
         </div>
         <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-blue)' }}>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>🏦 Saldo Bank (QRIS + Transfer)</p>
