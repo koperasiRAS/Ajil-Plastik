@@ -50,18 +50,16 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       if (!res.ok) throw new Error('API error');
       return res.json();
     },
-    // Use initial data from SSR to populate cache initially
-    initialData: initialData || emptyDashboard,
-    // Consider data fresh for 60 seconds — fast enough to catch new transactions
+    // placeholderData (not initialData) so switching branches always triggers a fresh fetch.
+    // initialData would mark SSR data as "fresh" for 60s — causing wrong-branch data to show.
+    placeholderData: initialData || emptyDashboard,
     staleTime: 60 * 1000,
-    // Always refetch on mount so navigating back to dashboard shows latest data
     refetchOnMount: true,
-    // Don't refetch on window focus - prevents unnecessary load
     refetchOnWindowFocus: false,
   });
 
-  // Show loading only if no initial data and still loading
-  if (isLoading && !data && !initialData) {
+  // Show loading spinner only on very first load (no placeholder and still fetching)
+  if (isLoading && !data) {
     return (
       <div className="p-6" style={{ background: 'var(--bg-primary)' }}>
         <LoadingCenter />
