@@ -48,19 +48,92 @@ export default function ReceiptPrint({ data, onClose }: Readonly<{ data: Receipt
 
       const logoUrl = window.location.origin + '/logo.png';
 
-      // Original method: Open new window
+      // Method 1: Try opening new window (preferred)
       const printWindow = window.open('', '_blank', 'width=400,height=600');
 
-      // Check if popup was blocked - use fallback method
-      if (!printWindow) {
-        // Fallback: Use browser's print dialog with current page content
-        alert('Popup printer diblokir! Menggunakan metode alternatif.\n\nPastikan popup diizinkan untuk mencetak struk.');
-        // Trigger browser print dialog - user can print from preview
-        window.print();
+      if (printWindow) {
+        // Success - write receipt to new window
+        printWindow.document.write(`
+          <html>
+          <head>
+            <title>Struk</title>
+            <style>
+              @page { margin: 0; size: 58mm auto; }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 11px;
+                width: 48mm;
+                padding: 3mm 2mm;
+                color: #000;
+                line-height: 1.5;
+                -webkit-print-color-adjust: exact;
+              }
+              .center { text-align: center; }
+              .right { text-align: right; }
+              .bold { font-weight: bold; }
+              .divider {
+                border: none;
+                border-top: 1px dashed #000;
+                margin: 4px 0;
+              }
+              .row {
+                display: flex;
+                justify-content: space-between;
+                padding: 1px 0;
+              }
+              .logo { width: 50px; height: auto; margin: 0 auto 4px; display: block; }
+              .store-name { font-size: 13px; font-weight: bold; letter-spacing: 0.5px; }
+              .store-info { font-size: 9px; line-height: 1.3; }
+              .item-name { font-size: 11px; font-weight: bold; }
+              .item-detail { font-size: 10px; }
+              .total-row { font-size: 14px; font-weight: bold; padding: 2px 0; }
+              .change-row { font-size: 13px; font-weight: bold; }
+              .footer { font-size: 9px; margin-top: 6px; }
+            </style>
+          </head>
+          <body>
+            ${receiptRef.current.innerHTML.replace(/src="\/logo\.png"/g, `src="${logoUrl}"`)}
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                }, 300);
+              };
+            <\/script>
+          </body>
+          </html>
+        `);
+        printWindow.document.close();
         return;
       }
 
-      printWindow.document.write(`
+      // Method 2 (Fallback): Popup blocked - use iframe approach
+      // Create hidden iframe with receipt content
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '58mm';
+      iframe.style.height = 'auto';
+      iframe.style.maxHeight = '100vh';
+      iframe.style.zIndex = '9999';
+      iframe.style.border = 'none';
+      iframe.style.background = '#fff';
+      iframe.id = 'print-receipt-iframe';
+
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) {
+        document.body.removeChild(iframe);
+        alert('Gagal mencetak struk. Silakan izinkan popup dan coba lagi.');
+        return;
+      }
+
+      iframeDoc.open();
+      iframeDoc.write(`
+        <!DOCTYPE html>
         <html>
         <head>
           <title>Struk</title>
@@ -74,45 +147,45 @@ export default function ReceiptPrint({ data, onClose }: Readonly<{ data: Receipt
               padding: 3mm 2mm;
               color: #000;
               line-height: 1.5;
-              -webkit-print-color-adjust: exact;
             }
             .center { text-align: center; }
             .right { text-align: right; }
             .bold { font-weight: bold; }
-            .divider {
-              border: none;
-              border-top: 1px dashed #000;
-              margin: 4px 0;
-            }
-            .row {
-              display: flex;
-              justify-content: space-between;
-              padding: 1px 0;
-            }
+            .divider { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+            .row { display: flex; justify-content: space-between; padding: 1px 0; }
             .logo { width: 50px; height: auto; margin: 0 auto 4px; display: block; }
-            .store-name { font-size: 13px; font-weight: bold; letter-spacing: 0.5px; }
+            .store-name { font-size: 13px; font-weight: bold; }
             .store-info { font-size: 9px; line-height: 1.3; }
             .item-name { font-size: 11px; font-weight: bold; }
             .item-detail { font-size: 10px; }
             .total-row { font-size: 14px; font-weight: bold; padding: 2px 0; }
             .change-row { font-size: 13px; font-weight: bold; }
             .footer { font-size: 9px; margin-top: 6px; }
+            @media print {
+              body { width: 48mm !important; }
+            }
           </style>
         </head>
         <body>
           ${receiptRef.current.innerHTML.replace(/src="\/logo\.png"/g, `src="${logoUrl}"`)}
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.print();
-                // Don't auto-close, let user see the print preview
-              }, 300);
-            };
-          <\/script>
         </body>
         </html>
       `);
-      printWindow.document.close();
+      iframeDoc.close();
+
+      // Wait for content to load, then print
+      iframe.onload = () => {
+        setTimeout(() => {
+          iframe.contentWindow?.print();
+          // Remove iframe after printing
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 1000);
+        }, 300);
+      };
+
     } catch (error) {
       console.error('Print error:', error);
       alert('Gagal mencetak struk. Silakan coba lagi atau gunakan Ctrl+P.');

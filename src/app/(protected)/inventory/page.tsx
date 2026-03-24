@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Product } from '@/lib/types';
+import { useAuth } from '@/components/AuthProvider';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
+  const { store } = useAuth();
   const [selectedProduct, setSelectedProduct] = useState('');
   const [restockQty, setRestockQty] = useState('');
   const [restockNote, setRestockNote] = useState('');
@@ -14,12 +16,18 @@ export default function InventoryPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { data: inventoryData, isLoading } = useQuery({
-    queryKey: ['inventory'],
+    queryKey: ['inventory', store?.id],
     queryFn: async () => {
-      const [productsRes, logsRes] = await Promise.all([
-        supabase.from('products').select('*, categories(name)').order('name'),
-        supabase.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(50),
-      ]);
+      // Filter by store_id - include products with matching store_id OR null (shared products)
+      let productsQuery = supabase.from('products').select('*, categories(name)').order('name');
+      if (store?.id) {
+        productsQuery = productsQuery.or(`store_id.eq.${store.id},store_id.is.null`);
+      }
+
+      // Filter logs by store
+      let logsQuery = supabase.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(50);
+
+      const [productsRes, logsRes] = await Promise.all([productsQuery, logsQuery]);
       return {
         products: (productsRes.data as Product[]) || [],
         stockLogs: logsRes.data || [],

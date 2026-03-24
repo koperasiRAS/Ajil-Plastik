@@ -145,6 +145,12 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
   // Cart operations
   const updateQuantity = (productId: string, newQty: number) => {
     if (newQty <= 0) { setCart(prev => prev.filter(item => item.product.id !== productId)); return; }
+    // Validate stock before updating
+    const cartItem = cart.find(item => item.product.id === productId);
+    if (cartItem && newQty > cartItem.product.stock) {
+      setMessage({ type: 'error', text: `Stok ${cartItem.product.name} tidak cukup!` });
+      return;
+    }
     setCart(prev => prev.map(item =>
       item.product.id === productId ? { ...item, quantity: newQty } : item
     ));

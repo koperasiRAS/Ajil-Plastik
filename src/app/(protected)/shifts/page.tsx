@@ -20,7 +20,7 @@ export default function ShiftsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { data: shiftsData, isLoading } = useQuery({
-    queryKey: ['shifts', user?.id, role],
+    queryKey: ['shifts', user?.id, role, store?.id],
     queryFn: async () => {
       if (!user) return { active: null, shifts: [] };
       const { data: activeData } = await supabase

@@ -63,7 +63,11 @@ export default function ExpensesPage() {
 
   const deleteExpense = async (id: string) => {
     if (!confirm('Hapus pengeluaran ini?')) return;
-    await supabase.from('expenses').delete().eq('id', id);
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) {
+      setAlert('error', 'Gagal menghapus pengeluaran');
+      return;
+    }
     // Invalidate dashboard to reflect deleted expense
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     broadcastCacheInvalidation(['dashboard']);
