@@ -177,6 +177,6 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (err) {
     console.error('Dashboard API error:', err);
-    return NextResponse.json({ error: 'Failed to load dashboard' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal memuat data dashboard. Silakan refresh halaman.' }, { status: 500 });
   }
 }

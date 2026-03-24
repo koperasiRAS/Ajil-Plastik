@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     return response;
   } catch (err) {
     console.error('Products API error:', err);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal memuat daftar produk. Silakan refresh halaman.' }, { status: 500 });
   }
 }
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data);
   } catch (err) {
     console.error('Products POST error:', err);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal menyimpan produk. Silakan coba lagi.' }, { status: 500 });
   }
 }
 
@@ -62,12 +62,13 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const { id, ...updates } = body;
+    if (!id) return NextResponse.json({ error: 'ID produk diperlukan' }, { status: 400 });
     const { data, error } = await supabase.from('products').update(updates).eq('id', id).select().single();
     if (error) throw error;
     return NextResponse.json(data);
   } catch (err) {
     console.error('Products PUT error:', err);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal mengupdate produk. Silakan coba lagi.' }, { status: 500 });
   }
 }
 
@@ -76,12 +77,12 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'ID produk diperlukan' }, { status: 400 });
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('Products DELETE error:', err);
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Gagal menghapus produk. Silakan coba lagi.' }, { status: 500 });
   }
 }
