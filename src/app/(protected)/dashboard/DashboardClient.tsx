@@ -51,12 +51,12 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     },
     // Use initial data from SSR to populate cache initially
     initialData: initialData || emptyDashboard,
-    // Consider data fresh for 60 seconds to reduce server load
-    staleTime: 60000,
-    // Refresh every 60 seconds (1 minute) - balance between real-time and performance
-    refetchInterval: 60000,
-    // Also refetch when window gains focus
-    refetchOnWindowFocus: true,
+    // Consider data fresh for 5 minutes to reduce server load
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    // Refresh every 5 minutes (disabled by default, enable if needed)
+    // refetchInterval: false, // Disabled to save bandwidth
+    // Don't refetch on window focus - prevents unnecessary load
+    refetchOnWindowFocus: false,
   });
 
   // Show loading only if no initial data and still loading

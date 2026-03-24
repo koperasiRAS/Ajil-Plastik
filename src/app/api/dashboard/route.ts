@@ -40,8 +40,9 @@ export async function GET(request: NextRequest) {
 
     // Determine transaction filter based on shift_id or store_id
     // If shift_id provided, filter by that shift; otherwise use today's date + store
-    let txnQuery = supabase.from('transactions').select('total, payment_method');
-    let recentQuery = supabase.from('transactions').select('id, total, created_at, payment_method, users(name)');
+    // IMPORTANT: Add limit to prevent fetching too much data
+    let txnQuery = supabase.from('transactions').select('total, payment_method').limit(1000);
+    let recentQuery = supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(10);
 
     if (shiftId) {
       txnQuery = txnQuery.eq('shift_id', shiftId);
@@ -58,10 +59,11 @@ export async function GET(request: NextRequest) {
     }
 
     // For COGS - filter by shift_id or date AND store
+    // IMPORTANT: Add limit to prevent fetching too much data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let cogsQuery: any = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at, store_id)');
+    let cogsQuery: any = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at, store_id)').limit(1000);
     if (shiftId) {
-      cogsQuery = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id, store_id)').eq('transactions.shift_id', shiftId);
+      cogsQuery = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id, store_id)').eq('transactions.shift_id', shiftId).limit(1000);
     } else {
       cogsQuery = cogsQuery.gte('transactions.created_at', todayISO);
     }

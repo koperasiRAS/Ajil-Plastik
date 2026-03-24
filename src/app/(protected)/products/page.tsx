@@ -21,6 +21,8 @@ export default function ProductsPage() {
   const [filterCategory, setFilterCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PRODUCTS_PER_PAGE = 50; // Limit products per page for performance
 
   const [name, setName] = useState('');
   const [barcode, setBarcode] = useState('');
@@ -32,9 +34,10 @@ export default function ProductsPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  const { data: productsData, isLoading } = useQuery({
-    queryKey: ['products-page', store?.id],
+  const { data: productsData, isLoading, refetch } = useQuery({
+    queryKey: ['products-page', store?.id, currentPage],
     queryFn: async () => {
+      const offset = (currentPage - 1) * PRODUCTS_PER_PAGE;
       // For owners: show all products (store-specific + shared products with null store_id)
       // For employees: show products matching current store OR shared products (null store_id)
       let prodRes;
@@ -42,9 +45,10 @@ export default function ProductsPage() {
         // Use .or() to include both store-specific products and shared products (null store_id)
         prodRes = await supabase
           .from('products')
-          .select('*, categories(name)')
+          .select('*, categories(name)', { count: 'exact' })
           .or(`store_id.eq.${store.id},store_id.is.null`)
-          .order('name');
+          .order('name')
+          .range(offset, offset + PRODUCTS_PER_PAGE - 1);
       } else {
         // No store selected - show all products
         prodRes = await supabase.from('products').select('*, categories(name)').order('name');
@@ -57,6 +61,7 @@ export default function ProductsPage() {
       return {
         products: (prodRes.data as Product[]) || [],
         categories,
+        count: prodRes.count || 0,
       };
     },
   });
@@ -286,6 +291,29 @@ export default function ProductsPage() {
               {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>Belum ada produk</td></tr>}
             </tbody>
           </table>
+
+          {/* Pagination Controls */}
+          {(productsData?.count || 0) > PRODUCTS_PER_PAGE && (
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border-default)' }}>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Halaman {currentPage} dari {Math.ceil((productsData?.count || 0) / PRODUCTS_PER_PAGE)} ({productsData?.count || 0} produk)
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-xs rounded disabled:opacity-50"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
+                >← Sebelumnya</button>
+                <button
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  disabled={currentPage >= Math.ceil((productsData?.count || 0) / PRODUCTS_PER_PAGE)}
+                  className="px-3 py-1 text-xs rounded disabled:opacity-50"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
+                >Selanjutnya →</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

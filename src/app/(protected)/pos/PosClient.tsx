@@ -76,24 +76,9 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
     initShift();
   }, [user, store?.id]);
 
-  // Refresh products when user returns to this page (e.g., after adding products)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // User returned to this tab/page - refresh products from server
-        // Use .or() to include products where is_active is true OR null (backward compatibility)
-        supabase.from('products').select('*, categories(name)').or('is_active.is.true,is_active.is.null').order('name')
-          .then(({ data }) => {
-            if (data) setProducts(data as Product[]);
-          });
-      }
-    };
+  // Products are loaded from SSR initialProducts - no need for visibility refresh
+  // This prevents unnecessary database load from constant refetching
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
-
-  // Keep existing component logic the same...
   const addToCart = useCallback((product: Product) => {
     if (product.stock <= 0) {
       setMessage({ type: 'error', text: `Stok ${product.name} habis!` });
