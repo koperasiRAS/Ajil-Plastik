@@ -75,7 +75,8 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
               onClick={() => setCollapsed(!collapsed)}
               className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110 ml-auto"
               style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
-              title={collapsed ? 'Expand' : 'Collapse'}
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={collapsed ? 'Perbesar sidebar' : ' Perkecil sidebar'}
             >
               {collapsed ? '→' : '←'}
             </button>
@@ -93,6 +94,7 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
             }}
             className="input-field text-xs py-1.5"
             style={{ fontSize: '0.75rem' }}
+            aria-label="Pilih cabang toko"
           >
             {stores.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
