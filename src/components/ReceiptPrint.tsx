@@ -311,11 +311,13 @@ export default function ReceiptPrint({ data, onClose }: Readonly<{ data: Receipt
 
         {/* Actions */}
         <div className="flex gap-2 p-4" style={{ borderTop: '1px solid var(--border-default)' }}>
-          <button onClick={handlePrint} className="btn-primary flex-1 py-2.5 font-semibold">
+          <button onClick={handlePrint} className="btn-primary flex-1 py-2.5 font-semibold"
+            aria-label="Cetak struk transaksi">
             🖨️ Cetak Struk
           </button>
           <button onClick={onClose} className="flex-1 py-2.5 rounded-lg text-sm font-medium"
-            style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}>
+            style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
+            aria-label="Tutup dialog struk">
             Tutup
           </button>
         </div>
