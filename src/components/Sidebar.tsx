@@ -113,12 +113,12 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
 
       {/* Navigation */}
       <nav className="flex-1 p-2 space-y-0.5 stagger-children overflow-y-auto">
-        {!role ? (
+        {(!role && !user) ? (
           <div className="flex items-center justify-center py-8">
             <div className="w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
           </div>
         ) : (
-        NAV_ITEMS.filter(item => item.roles.includes(role!)).map(item => {
+        NAV_ITEMS.filter(item => item.roles.includes(role || (user?.role as 'owner' | 'employee') || 'owner')).map(item => {
           const isActive = pathname === item.href;
           const isInventory = item.href === '/inventory';
           return (

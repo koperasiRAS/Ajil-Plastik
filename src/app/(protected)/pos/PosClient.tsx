@@ -13,15 +13,36 @@ import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
 // Lazy Load ReceiptPrint Component
 const ReceiptPrint = dynamic(() => import('@/components/ReceiptPrint'), { ssr: false });
 
-interface PosClientProps {
-  initialProducts: Product[];
-  initialCategories: Category[];
-}
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { LoadingCenter } from '@/components/LoadingSpinner';
 
-export default function PosClient({ initialProducts, initialCategories }: PosClientProps) {
+export default function PosClient() {
   const { user, store } = useAuth();
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const categories = initialCategories;
+  const queryClient = useQueryClient();
+
+  // Fetch categories
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const { data } = await supabase.from('categories').select('*').order('name');
+      return (data as Category[]) || [];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Fetch active products
+  const { data: products = [], isLoading: isLoadingProducts } = useQuery({
+    queryKey: ['products', store?.id],
+    queryFn: async () => {
+      const query = store?.id
+        ? supabase.from('products').select('*, categories(name)').eq('store_id', store.id).or('is_active.is.true,is_active.is.null').order('name')
+        : supabase.from('products').select('*, categories(name)').or('is_active.is.true,is_active.is.null').order('name');
+      const { data } = await query;
+      return (data as Product[]) || [];
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+
   const [cart, setCart] = useState<CartItem[]>([]);
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -162,11 +183,14 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       });
 
       // Update local product stock IMMEDIATELY (optimistic)
-      setProducts(prev => prev.map(p => {
-        const cartItem = cart.find(c => c.product.id === p.id);
-        if (cartItem) return { ...p, stock: p.stock - cartItem.quantity };
-        return p;
-      }));
+      queryClient.setQueryData(['products', store?.id], (old: Product[] | undefined) => {
+        if (!old) return old;
+        return old.map(p => {
+          const cartItem = cart.find(c => c.product.id === p.id);
+          if (cartItem) return { ...p, stock: p.stock - cartItem.quantity };
+          return p;
+        });
+      });
 
       const currentCart = [...cart];
       setCart([]); setDiscount(''); setCashReceived(''); setPaymentMethod('cash');
@@ -271,39 +295,45 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
 
         {/* Product Grid */}
         <div className="flex-1 overflow-auto p-4 pt-2">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {filteredProducts.map(product => (
-              <button
-                key={product.id}
-                onClick={() => addToCart(product)}
-                disabled={product.stock <= 0}
-                className="glass-card p-0 overflow-hidden text-left transition-all duration-200 group disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ cursor: product.stock > 0 ? 'pointer' : 'not-allowed' }}
-              >
-                {/* Product Image - Using emoji instead of images for better performance */}
-                <div className="product-image-container relative flex items-center justify-center" style={{ background: 'var(--bg-input)' }}>
-                  <div className="text-4xl">📦</div>
-                  {product.stock <= 5 && product.stock > 0 && (
-                    <span className="absolute top-1 right-1 badge badge-yellow text-[10px] px-1.5">Sisa {product.stock}</span>
-                  )}
-                  {product.stock <= 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                      <span className="text-white text-xs font-bold">HABIS</span>
-                    </div>
-                  )}
-                </div>
-                {/* Product Info */}
-                <div className="p-2.5">
-                  <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{product.name}</p>
-                  {product.categories?.name && (
-                    <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{product.categories.name}</p>
-                  )}
-                  <p className="text-sm font-bold mt-1" style={{ color: 'var(--accent-blue)' }}>{formatRupiah(product.price)}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-          {filteredProducts.length === 0 && (
+          {isLoadingProducts ? (
+            <div className="flex justify-center items-center h-full">
+              <LoadingCenter />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {filteredProducts.map(product => (
+                <button
+                  key={product.id}
+                  onClick={() => addToCart(product)}
+                  disabled={product.stock <= 0}
+                  className="glass-card p-0 overflow-hidden text-left transition-all duration-200 group disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ cursor: product.stock > 0 ? 'pointer' : 'not-allowed' }}
+                >
+                  {/* Product Image - Using emoji instead of images for better performance */}
+                  <div className="product-image-container relative flex items-center justify-center" style={{ background: 'var(--bg-input)' }}>
+                    <div className="text-4xl">📦</div>
+                    {product.stock <= 5 && product.stock > 0 && (
+                      <span className="absolute top-1 right-1 badge badge-yellow text-[10px] px-1.5">Sisa {product.stock}</span>
+                    )}
+                    {product.stock <= 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                        <span className="text-white text-xs font-bold">HABIS</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Product Info */}
+                  <div className="p-2.5">
+                    <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{product.name}</p>
+                    {product.categories?.name && (
+                      <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{product.categories.name}</p>
+                    )}
+                    <p className="text-sm font-bold mt-1" style={{ color: 'var(--accent-blue)' }}>{formatRupiah(product.price)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {filteredProducts.length === 0 && !isLoadingProducts && (
             <div className="flex flex-col items-center py-12 animate-fade-in">
                <span className="text-4xl mb-3">🔍</span>
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tidak ada produk ditemukan</p>

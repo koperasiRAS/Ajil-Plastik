@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         userData = userRes.data as AppUser;
-        userRole = userRes.data.role as UserRole;
+        userRole = (userRes.data.role as UserRole) || 'owner';
       }
 
       setUser(userData);
