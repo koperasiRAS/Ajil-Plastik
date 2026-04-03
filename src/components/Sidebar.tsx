@@ -36,9 +36,8 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
-  const filteredItems = NAV_ITEMS.filter(item => role && item.roles.includes(role));
-
   // Check for low stock — cached with React Query, refreshes every 60s
+  // Always call useQuery (hooks can't be conditional)
   const { data: lowStockCount = 0 } = useQuery({
     queryKey: ['low-stock-count'],
     queryFn: async () => {
@@ -114,7 +113,12 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
 
       {/* Navigation */}
       <nav className="flex-1 p-2 space-y-0.5 stagger-children overflow-y-auto">
-        {filteredItems.map(item => {
+        {!role ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
+          </div>
+        ) : (
+        NAV_ITEMS.filter(item => item.roles.includes(role!)).map(item => {
           const isActive = pathname === item.href;
           const isInventory = item.href === '/inventory';
           return (
@@ -163,7 +167,8 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
               )}
             </Link>
           );
-        })}
+        })
+        )}
       </nav>
 
       {/* Low Stock Alert */}
