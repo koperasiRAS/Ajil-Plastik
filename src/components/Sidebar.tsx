@@ -26,7 +26,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Pengeluaran', href: '/expenses', icon: '💸', roles: ['owner', 'employee'] },
   { label: 'Laporan', href: '/reports', icon: '📈', roles: ['owner', 'employee'] },
   { label: 'Riwayat', href: '/history', icon: '🧾', roles: ['owner', 'employee'] },
-  { label: 'Shift', href: '/shifts', icon: '⏰', roles: ['owner', 'employee'] },
   { label: 'Karyawan', href: '/employees', icon: '👥', roles: ['owner'] },
   { label: 'Pengaturan', href: '/settings', icon: '⚙️', roles: ['owner'] },
 ];

@@ -17,7 +17,6 @@ const DATA_SECTIONS: DataSection[] = [
   { key: 'transactions', label: 'Transaksi', icon: '💳', table: 'transactions', description: 'Semua riwayat transaksi' },
   { key: 'stock_logs', label: 'Log Stok', icon: '📋', table: 'stock_logs', description: 'Riwayat perubahan stok' },
   { key: 'expenses', label: 'Pengeluaran', icon: '💸', table: 'expenses', description: 'Semua catatan pengeluaran' },
-  { key: 'shifts', label: 'Shift Kasir', icon: '⏰', table: 'shifts', description: 'Riwayat shift kasir' },
   { key: 'products', label: 'Produk', icon: '📦', table: 'products', description: 'Semua data produk (hati-hati!)' },
   { key: 'categories', label: 'Kategori', icon: '🏷️', table: 'categories', description: 'Semua kategori produk' },
 ];
@@ -146,7 +145,7 @@ export default function SettingsPage() {
         <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>ℹ️ Catatan</p>
         <ul className="space-y-1" style={{ color: 'var(--text-muted)' }}>
           <li>• Semua query berjalan di <strong>server-side</strong> (API routes)</li>
-          <li>• Hapus Semua: transaksi, log, pengeluaran, shifts. Produk & kategori tetap.</li>
+          <li>• Hapus Semua: transaksi, log, pengeluaran. Produk & kategori tetap.</li>
           <li>• Data yang dihapus <strong>tidak bisa dikembalikan</strong>.</li>
         </ul>
       </div>

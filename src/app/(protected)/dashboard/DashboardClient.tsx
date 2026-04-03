@@ -23,7 +23,6 @@ interface DashboardData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   topProducts: any[];
   salesByPayment: { cash: number; qris: number; transfer: number; };
-  openingCash: number;
 }
 
 const emptyDashboard: DashboardData = {
@@ -32,7 +31,6 @@ const emptyDashboard: DashboardData = {
   todayGrossProfit: 0, todayNetProfit: 0, grossMargin: 0,
   recentTransactions: [], topProducts: [],
   salesByPayment: { cash: 0, qris: 0, transfer: 0 },
-  openingCash: 0,
 };
 
 interface DashboardClientProps {
@@ -131,15 +129,14 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 mb-6 stagger-children">
           <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-green)' }}>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>💵 Saldo Kas (Cash)</p>
-          <p className="text-2xl font-bold mt-1" style={{ color: (d.openingCash + d.salesByPayment.cash - d.todayCashExpenses) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-            {formatRupiah(d.openingCash + d.salesByPayment.cash - d.todayCashExpenses)}
+          <p className="text-2xl font-bold mt-1" style={{ color: (d.salesByPayment.cash - d.todayCashExpenses) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+            {formatRupiah(d.salesByPayment.cash - d.todayCashExpenses)}
           </p>
           <div className="flex gap-3 mt-1 flex-wrap">
-            <span className="text-[10px]" style={{ color: 'var(--accent-green)' }}>📥 Buka: {formatRupiah(d.openingCash)}</span>
             <span className="text-[10px]" style={{ color: 'var(--accent-green)' }}>💰 Jual: {formatRupiah(d.salesByPayment.cash)}</span>
             <span className="text-[10px]" style={{ color: 'var(--accent-red)' }}>💸 Keluar: {formatRupiah(d.todayCashExpenses)}</span>
           </div>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Kas buka + Penjualan cash − Pengeluaran cash saja</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Penjualan cash − Pengeluaran cash</p>
         </div>
         <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-blue)' }}>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>🏦 Saldo Bank (QRIS + Transfer)</p>

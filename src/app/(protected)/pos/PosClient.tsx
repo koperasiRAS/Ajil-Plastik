@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -30,54 +30,11 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [checkingOut, setCheckingOut] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [hasOpenShift, setHasOpenShift] = useState<boolean | null>(null);
-  const [currentShiftId, setCurrentShiftId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'transfer'>('cash');
   const [discount, setDiscount] = useState('');
   const [cashReceived, setCashReceived] = useState('');
-  const [loading, setLoading] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [receiptData, setReceiptData] = useState<any>(null);
-
-  // Load shift data only (since products/categories are already loaded from SSR)
-  useEffect(() => {
-    const initShift = async () => {
-      try {
-        if (!user) {
-          setHasOpenShift(false);
-          setLoading(false);
-          return;
-        }
-
-        // Query shifts filtered by user AND store (if store selected)
-        let query = supabase
-          .from('shifts')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('status', 'open');
-
-        // Filter by store if user has a store selected
-        if (store?.id) {
-          query = query.eq('store_id', store.id);
-        }
-
-        const { data: shiftData } = await query.limit(1);
-
-        const hasShift = shiftData && shiftData.length > 0;
-        setHasOpenShift(hasShift);
-        setCurrentShiftId(hasShift ? shiftData[0].id : null);
-      } catch (err) {
-        console.error('POS init shift error:', err);
-        setHasOpenShift(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-    initShift();
-  }, [user, store?.id]);
-
-  // Products are loaded from SSR initialProducts - no need for visibility refresh
-  // This prevents unnecessary database load from constant refetching
 
   const addToCart = useCallback((product: Product) => {
     if (product.stock <= 0) {
@@ -114,8 +71,8 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
     addToCart(data as Product);
   }, [addToCart]);
 
-  // Enable barcode scanner as soon as possible
-  useBarcodeScanner({ onScan: handleScan, enabled: !loading });
+  // Enable barcode scanner
+  useBarcodeScanner({ onScan: handleScan, enabled: true });
 
   // Filter products using DEBOUNCED SEARCH
   const filteredProducts = products.filter(p => {
@@ -173,7 +130,7 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
       // Create transaction
       const { data: txn, error: txnError } = await supabase
         .from('transactions')
-        .insert({ user_id: user.id, shift_id: currentShiftId, store_id: store?.id || null, total, payment_method: paymentMethod, discount: discountAmount })
+        .insert({ user_id: user.id, store_id: store?.id || null, total, payment_method: paymentMethod, discount: discountAmount })
         .select('id').single();
 
       if (txnError || !txn) throw new Error('Gagal membuat transaksi');
@@ -258,29 +215,6 @@ export default function PosClient({ initialProducts, initialCategories }: PosCli
   };
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
-
-  // Loading spinner only for shift check now, data is instant!
-  if (hasOpenShift === null || loading) {
-    return (
-      <div className="flex items-center justify-center h-screen" style={{ background: 'var(--bg-primary)' }}>
-        <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
-      </div>
-    );
-  }
-
-  // No shift
-  if (!hasOpenShift) {
-    return (
-      <div className="flex items-center justify-center h-screen" style={{ background: 'var(--bg-primary)' }}>
-        <div className="glass-card p-8 text-center max-w-md animate-fade-in-scale">
-          <div className="text-6xl mb-4">⏰</div>
-          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Shift Belum Dibuka</h2>
-          <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>Buka shift terlebih dahulu sebelum melakukan penjualan.</p>
-          <a href="/shifts" className="btn-primary inline-block px-6 py-2.5">Buka Shift →</a>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col lg:flex-row h-screen" style={{ background: 'var(--bg-primary)' }}>

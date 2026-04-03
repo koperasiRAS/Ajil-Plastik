@@ -56,7 +56,6 @@ export default function ExpensesPage() {
       setCategory(''); setAmount(''); setDescription(''); setShowForm(false);
       // Invalidate dashboard to reflect new expense
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['shift-summary'] }); // Update live shift summary
       broadcastCacheInvalidation(['dashboard']);
       refetch();
     } catch (err) {
@@ -73,7 +72,6 @@ export default function ExpensesPage() {
     }
     // Invalidate dashboard to reflect deleted expense
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    queryClient.invalidateQueries({ queryKey: ['shift-summary'] }); // Update live shift summary
     broadcastCacheInvalidation(['dashboard']);
     refetch();
   };

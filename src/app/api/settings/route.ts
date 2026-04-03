@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabase } from '@/lib/supabase-server';
 
-const TABLES = ['transaction_items', 'transactions', 'stock_logs', 'expenses', 'shifts', 'products', 'categories'];
+const TABLES = ['transaction_items', 'transactions', 'stock_logs', 'expenses', 'products', 'categories'];
 
 export async function GET() {
   const supabase = await createServerSupabase();
@@ -32,7 +32,7 @@ export async function DELETE(req: NextRequest) {
     if (all === 'true') {
       // Delete all data except products & categories
       // Delete in order: children first, then parents (for foreign key constraints)
-      const deleteOrder = ['transaction_items', 'transactions', 'stock_logs', 'expenses', 'shifts'];
+      const deleteOrder = ['transaction_items', 'transactions', 'stock_logs', 'expenses'];
       for (const t of deleteOrder) {
         // Use .not('id', 'is', null) to delete ALL rows (reliable method)
         await supabase.from(t).delete().not('id', 'is', null);

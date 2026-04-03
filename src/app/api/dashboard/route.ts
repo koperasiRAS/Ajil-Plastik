@@ -4,30 +4,23 @@ import { createServerSupabase } from '@/lib/supabase-server';
 // Helper: get WIB (UTC+7) date boundaries
 function getWIBToday() {
   const now = new Date();
-  // Current time in WIB
-  const wibOffset = 7 * 60; // UTC+7 in minutes
+  const wibOffset = 7 * 60;
   const wibNow = new Date(now.getTime() + wibOffset * 60 * 1000);
 
-  // Today start in WIB = midnight WIB = 17:00 UTC previous day
   const wibMidnight = new Date(Date.UTC(
     wibNow.getUTCFullYear(),
     wibNow.getUTCMonth(),
     wibNow.getUTCDate(),
     0, 0, 0, 0
   ));
-  // Convert back to UTC: midnight WIB = midnight - 7 hours in UTC
   const todayStartUTC = new Date(wibMidnight.getTime() - wibOffset * 60 * 1000);
 
-  // Today's date string in WIB format (YYYY-MM-DD)
-  const todayDateWIB = `${wibNow.getUTCFullYear()}-${String(wibNow.getUTCMonth() + 1).padStart(2, '0')}-${String(wibNow.getUTCDate()).padStart(2, '0')}`;
-
-  return { todayStartUTC, todayDateWIB };
+  return { todayStartUTC };
 }
 
 export async function GET(request: NextRequest) {
   const supabase = await createServerSupabase();
   const { searchParams } = new URL(request.url);
-  const shiftId = searchParams.get('shift_id'); // Optional: filter by specific shift
   const storeId = searchParams.get('store_id'); // Optional: filter by store/branch
 
   try {
@@ -38,37 +31,15 @@ export async function GET(request: NextRequest) {
     // Build store filter
     const storeFilter = storeId ? { store_id: storeId } : {};
 
-    // Determine transaction filter based on shift_id or store_id
-    // If shift_id provided, filter by that shift; otherwise use today's date + store
-    // IMPORTANT: Add limit to prevent fetching too much data
-    let txnQuery = supabase.from('transactions').select('total, payment_method').limit(1000);
-    let recentQuery = supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').order('created_at', { ascending: false }).limit(5);
+    // Build base queries - always filter by today's date
+    let txnQuery = supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO).limit(1000);
+    let recentQuery = supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').gte('created_at', todayISO).order('created_at', { ascending: false }).limit(5);
+    let cogsQuery = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at, store_id)').gte('transactions.created_at', todayISO).limit(1000);
 
-    if (shiftId) {
-      txnQuery = txnQuery.eq('shift_id', shiftId);
-      recentQuery = recentQuery.eq('shift_id', shiftId);
-    } else {
-      txnQuery = txnQuery.gte('created_at', todayISO);
-      recentQuery = recentQuery.gte('created_at', todayISO);
-    }
-
-    // Apply store filter to transactions
+    // Apply store filter
     if (Object.keys(storeFilter).length > 0) {
       txnQuery = txnQuery.match(storeFilter);
       recentQuery = recentQuery.match(storeFilter);
-    }
-
-    // For COGS - filter by shift_id or date AND store
-    // IMPORTANT: Add limit to prevent fetching too much data
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let cogsQuery: any = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at, store_id)').limit(1000);
-    if (shiftId) {
-      cogsQuery = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(shift_id, store_id)').eq('transactions.shift_id', shiftId).limit(1000);
-    } else {
-      cogsQuery = cogsQuery.gte('transactions.created_at', todayISO);
-    }
-    // Apply store filter to COGS query
-    if (storeId) {
       cogsQuery = cogsQuery.eq('transactions.store_id', storeId);
     }
 
@@ -81,7 +52,6 @@ export async function GET(request: NextRequest) {
       expensesRes,
       cogsRes,
       topProductsRes,
-      shiftRes
     ] = await Promise.all([
       txnQuery,
       // Products filtered by store
@@ -92,28 +62,17 @@ export async function GET(request: NextRequest) {
       storeId
         ? supabase.from('products').select('id', { count: 'exact', head: true }).eq('store_id', storeId).lte('stock', 5)
         : supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
-      recentQuery, // Already has .order().limit(5) from above — no duplicate
-      // Expenses filtered by store — select payment_method to split cash vs non-cash
+      recentQuery,
+      // Expenses filtered by store
       storeId
         ? supabase.from('expenses').select('amount, payment_method').eq('store_id', storeId).gte('created_at', todayISO)
         : supabase.from('expenses').select('amount, payment_method').gte('created_at', todayISO),
       cogsQuery,
-      // Optimized: Only fetch last 500 transaction items for top products (much lighter)
-      supabase.from('transaction_items')
-        .select('quantity, products(name), transactions!inner(created_at)')
-        .gte('transactions.created_at', sevenDaysAgo)
-        .limit(500),
-      // Get current open shift for cash balance calculation (filtered by store if provided)
+      // Top products - last 7 days, filtered by store if provided
       storeId
-        ? supabase.from('shifts').select('opening_cash').eq('status', 'open').eq('store_id', storeId).order('opened_at', { ascending: false }).limit(1)
-        : supabase.from('shifts').select('opening_cash').eq('status', 'open').order('opened_at', { ascending: false }).limit(1),
+        ? supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at, store_id)').eq('transactions.store_id', storeId).gte('transactions.created_at', sevenDaysAgo).limit(500)
+        : supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo).limit(500),
     ]);
-
-    // Get opening cash from current shift
-    let openingCash = 0;
-    if (shiftRes.data && shiftRes.data.length > 0) {
-      openingCash = Number(shiftRes.data[0].opening_cash) || 0;
-    }
 
     // Process expenses — split cash vs non-cash to accurately calculate cash balance
     let todayExpenses = 0;
@@ -168,10 +127,9 @@ export async function GET(request: NextRequest) {
       totalProducts: productsRes.count || 0, lowStockCount: lowStockRes.count || 0,
       todayExpenses, todayCashExpenses, todayCOGS, todayGrossProfit, todayNetProfit, grossMargin,
       recentTransactions: recentRes.data || [], topProducts, salesByPayment,
-      openingCash,
     });
 
-    // Cache for 10s on CDN, allow stale for 30s while revalidating in background
+    // Cache for 10s on CDN
     response.headers.set('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
 
     return response;

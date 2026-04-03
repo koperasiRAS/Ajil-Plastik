@@ -5,8 +5,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
-import { useMidnightReset } from '@/hooks/useMidnightReset';
-import { queryClient } from '@/lib/queryClient';
 
 const OWNER_ROUTES = ['/products', '/inventory', '/employees', '/settings'];
 
@@ -42,16 +40,6 @@ export default function ProtectedLayout({ children }: Readonly<{ children: React
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Auto-reset shifts at midnight (11:59 PM) for all stores
-  useMidnightReset({
-    enabled: !!session,
-    onReset: () => {
-      // Refresh data after reset
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['shifts'] });
-    }
-  });
 
   useEffect(() => {
     if (loading) return;
