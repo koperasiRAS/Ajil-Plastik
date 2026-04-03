@@ -39,12 +39,11 @@ export default function Sidebar({ onNavigate }: Readonly<{ onNavigate?: () => vo
   // Check for low stock — cached with React Query, refreshes every 60s
   // Always call useQuery (hooks can't be conditional)
   const { data: lowStockCount = 0 } = useQuery({
-    queryKey: ['low-stock-count'],
+    queryKey: ['low-stock-count', store?.id],
     queryFn: async () => {
-      const { count } = await supabase
-        .from('products')
-        .select('id', { count: 'exact', head: true })
-        .lte('stock', 5);
+      let q = supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5);
+      if (store?.id) q = q.eq('store_id', store.id);
+      const { count } = await q;
       return count || 0;
     },
     staleTime: 60_000, // 60 seconds

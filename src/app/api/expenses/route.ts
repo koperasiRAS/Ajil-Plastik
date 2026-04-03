@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from('expenses')
       .select('*')
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .limit(1000);
 
     // Filter by store if provided
     if (storeId) {

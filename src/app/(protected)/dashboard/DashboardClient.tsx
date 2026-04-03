@@ -51,7 +51,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     // placeholderData (not initialData) so switching branches always triggers a fresh fetch.
     // initialData would mark SSR data as "fresh" for 60s — causing wrong-branch data to show.
     placeholderData: initialData || emptyDashboard,
-    staleTime: 60 * 1000,
+    staleTime: 30 * 1000, // Shorter for more responsive financial data
     refetchOnMount: true,
     refetchOnWindowFocus: false,
   });

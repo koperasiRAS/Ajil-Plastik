@@ -42,13 +42,14 @@ export async function GET(req: NextRequest) {
     // Build store filter
     const storeFilter = storeId ? { store_id: storeId } : {};
 
-    // Transactions
+    // Transactions — add .limit(1000) to prevent unbounded query
     const { data: txns } = await supabase
       .from('transactions')
       .select('total, created_at, payment_method')
       .match(storeFilter)
       .gte('created_at', startUTC.toISOString())
-      .lte('created_at', endUTC.toISOString());
+      .lte('created_at', endUTC.toISOString())
+      .limit(1000);
 
     // Transaction items with COGS
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,7 +59,8 @@ export async function GET(req: NextRequest) {
         .from('transaction_items')
         .select('quantity, price, cost_price, transactions!inner(created_at, store_id)')
         .gte('transactions.created_at', startUTC.toISOString())
-        .lte('transactions.created_at', endUTC.toISOString());
+        .lte('transactions.created_at', endUTC.toISOString())
+        .limit(2000);
       // Apply store filter
       if (storeId) {
         txnItemsQuery = txnItemsQuery.eq('transactions.store_id', storeId);
@@ -75,7 +77,8 @@ export async function GET(req: NextRequest) {
         .select('amount, date, category, payment_method')
         .match(storeFilter)
         .gte('date', startDateWIB)
-        .lte('date', endDateWIB);
+        .lte('date', endDateWIB)
+        .limit(1000);
       exps = data || [];
     } catch { /* */ }
 

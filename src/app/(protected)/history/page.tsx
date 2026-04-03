@@ -18,7 +18,7 @@ export default function HistoryPage() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data: historyData, isLoading } = useQuery({
+  const { data: historyData, isLoading, isFetching } = useQuery({
     queryKey: ['history', page, dateFrom, dateTo, store?.id],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -102,7 +102,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading || isFetching ? (
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-blue)', borderTopColor: 'transparent' }} />
         </div>
@@ -153,7 +153,7 @@ export default function HistoryPage() {
         <div className="flex items-center justify-center gap-2 mt-6 animate-fade-in">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1 || isLoading}
+            disabled={page <= 1 || isFetching}
             className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
           >
@@ -164,7 +164,7 @@ export default function HistoryPage() {
           </span>
           <button
             onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
-            disabled={page >= pagination.totalPages || isLoading}
+            disabled={page >= pagination.totalPages || isFetching}
             className="px-3 py-2 rounded-lg text-sm disabled:opacity-40"
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
           >

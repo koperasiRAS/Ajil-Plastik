@@ -13,12 +13,11 @@ import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
 // Lazy Load ReceiptPrint Component
 const ReceiptPrint = dynamic(() => import('@/components/ReceiptPrint'), { ssr: false });
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { LoadingCenter } from '@/components/LoadingSpinner';
 
 export default function PosClient() {
   const { user, store } = useAuth();
-  const queryClient = useQueryClient();
 
   // Fetch categories
   const { data: categories = [] } = useQuery({
@@ -30,13 +29,27 @@ export default function PosClient() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Fetch active products
+  // Fetch active products — align filter with products/page: exact store_id OR null (global products)
   const { data: products = [], isLoading: isLoadingProducts } = useQuery({
     queryKey: ['products', store?.id],
     queryFn: async () => {
-      const query = store?.id
-        ? supabase.from('products').select('*, categories(name)').eq('store_id', store.id).or('is_active.is.true,is_active.is.null').order('name')
-        : supabase.from('products').select('*, categories(name)').or('is_active.is.true,is_active.is.null').order('name');
+      let query;
+      if (store?.id) {
+        query = supabase
+          .from('products')
+          .select('*, categories(name)')
+          .or(`store_id.eq.${store.id},store_id.is.null`)
+          .or('is_active.is.true,is_active.is.null')
+          .order('name')
+          .limit(500);
+      } else {
+        query = supabase
+          .from('products')
+          .select('*, categories(name)')
+          .or('is_active.is.true,is_active.is.null')
+          .order('name')
+          .limit(500);
+      }
       const { data } = await query;
       return (data as Product[]) || [];
     },
@@ -80,17 +93,20 @@ export default function PosClient() {
     setTimeout(() => setMessage(null), 1500);
   }, []);
 
-  // Barcode scan
+  // Barcode scan — filter by store to avoid cross-store barcode collisions
   const handleScan = useCallback(async (barcode: string) => {
-    const { data, error } = await supabase
-      .from('products').select('*, categories(name)').eq('barcode', barcode).single();
+    let query = supabase.from('products').select('*, categories(name)').eq('barcode', barcode);
+    if (store?.id) {
+      query = query.or(`store_id.eq.${store.id},store_id.is.null`);
+    }
+    const { data, error } = await query.single();
     if (error || !data) {
       setMessage({ type: 'error', text: `❌ Produk tidak ditemukan: ${barcode}` });
       setTimeout(() => setMessage(null), 3000);
       return;
     }
     addToCart(data as Product);
-  }, [addToCart]);
+  }, [addToCart, store?.id]);
 
   // Enable barcode scanner
   useBarcodeScanner({ onScan: handleScan, enabled: true });
@@ -124,12 +140,11 @@ export default function PosClient() {
   const discountAmount = Number.parseFloat(discount) || 0;
   const total = Math.max(0, subtotal - discountAmount);
 
-  // Checkout with proper stock validation
-  const handleCheckout = async () => {
-    if (cart.length === 0 || !user) return;
-    setCheckingOut(true); setMessage(null);
+  // Checkout mutation with optimistic stock update + proper rollback on error
+  const checkoutMutation = useMutation({
+    mutationFn: async () => {
+      if (cart.length === 0 || !user) throw new Error('Keranjang kosong');
 
-    try {
       // Validate current stock from server before checkout
       const productIds = cart.map(item => item.product.id);
       const { data: stockData, error: stockError } = await supabase
@@ -164,9 +179,9 @@ export default function PosClient() {
       const { error: itemsError } = await supabase.from('transaction_items').insert(items);
       if (itemsError) throw new Error('Gagal menyimpan item');
 
-      // Show receipt IMMEDIATELY (optimistic — don't wait for stock updates)
+      // Build receipt data
       const cashReceivedNum = Number.parseFloat(cashReceived) || 0;
-      setReceiptData({
+      const receipt = {
         storeName: 'Toko Plastik',
         storeAddress: 'Jl. Boulevard Gran City,\nJatimulya, Kec. Ci\nKota Depok, Jawa',
         storePhone: 'Telp: 628551218',
@@ -180,25 +195,10 @@ export default function PosClient() {
         paymentMethod, transactionId: txn.id,
         cashReceived: paymentMethod === 'cash' ? cashReceivedNum : 0,
         change: paymentMethod === 'cash' ? Math.max(0, cashReceivedNum - total) : 0,
-      });
+      };
 
-      // Update local product stock IMMEDIATELY (optimistic)
-      queryClient.setQueryData(['products', store?.id], (old: Product[] | undefined) => {
-        if (!old) return old;
-        return old.map(p => {
-          const cartItem = cart.find(c => c.product.id === p.id);
-          if (cartItem) return { ...p, stock: p.stock - cartItem.quantity };
-          return p;
-        });
-      });
-
-      const currentCart = [...cart];
-      setCart([]); setDiscount(''); setCashReceived(''); setPaymentMethod('cash');
-      setCheckingOut(false);
-
-      // Update stock in DB - wait for it to complete to ensure data consistency
-      // Use Promise.allSettled to not fail if one update fails
-      const stockUpdateResults = await Promise.allSettled(currentCart.map(item =>
+      // Update stock in DB
+      const stockUpdateResults = await Promise.allSettled(cart.map(item =>
         Promise.all([
           supabase.from('products').update({ stock: (stockMap.get(item.product.id) ?? item.product.stock) - item.quantity }).eq('id', item.product.id),
           supabase.from('stock_logs').insert({
@@ -208,14 +208,45 @@ export default function PosClient() {
         ])
       ));
 
-      // Log any failures but don't block UI
+      // Log any failures
       stockUpdateResults.forEach((result, index) => {
         if (result.status === 'rejected') {
-          console.error(`Failed to update stock for ${currentCart[index].product.name}:`, result.reason);
+          console.error(`Failed to update stock for ${cart[index].product.name}:`, result.reason);
         }
       });
 
-      // Invalidate ALL queries AFTER stock update completes — dashboard shows accurate data
+      return { receipt, txnId: txn.id };
+    },
+    onMutate: async () => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['products', store?.id] });
+
+      // Snapshot previous value for rollback
+      const previousProducts = queryClient.getQueryData<Product[]>(['products', store?.id]);
+
+      // Optimistically update stock in local cache
+      queryClient.setQueryData<Product[]>(['products', store?.id], (old) => {
+        if (!old) return old;
+        return old.map(p => {
+          const cartItem = cart.find(c => c.product.id === p.id);
+          if (cartItem) return { ...p, stock: p.stock - cartItem.quantity };
+          return p;
+        });
+      });
+
+      setCheckingOut(true);
+      setMessage(null);
+      return { previousProducts };
+    },
+    onSuccess: ({ receipt }) => {
+      // Show receipt and clear cart
+      setReceiptData(receipt);
+      setCart([]);
+      setDiscount('');
+      setCashReceived('');
+      setPaymentMethod('cash');
+
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['products-page'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -225,18 +256,21 @@ export default function PosClient() {
       queryClient.invalidateQueries({ queryKey: ['history'] });
 
       // Broadcast to other tabs
-      broadcastCacheInvalidation(['dashboard']);
-      broadcastCacheInvalidation(['products']);
-      broadcastCacheInvalidation(['products-page']);
-      broadcastCacheInvalidation(['history']);
-      broadcastCacheInvalidation(['transactions']);
-
-      return; // Exit early — UI already updated
-    } catch (err) {
+      broadcastCacheInvalidation(['dashboard', 'products', 'products-page', 'history', 'transactions']);
+    },
+    onError: (err, _vars, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousProducts !== undefined) {
+        queryClient.setQueryData(['products', store?.id], context.previousProducts);
+      }
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Checkout gagal' });
+    },
+    onSettled: () => {
       setCheckingOut(false);
-    }
-  };
+    },
+  });
+
+  const handleCheckout = () => checkoutMutation.mutate();
 
   const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 

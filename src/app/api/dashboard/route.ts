@@ -63,10 +63,10 @@ export async function GET(request: NextRequest) {
         ? supabase.from('products').select('id', { count: 'exact', head: true }).eq('store_id', storeId).lte('stock', 5)
         : supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', 5),
       recentQuery,
-      // Expenses filtered by store
+      // Expenses - add .limit(1000) to prevent unbounded query
       storeId
-        ? supabase.from('expenses').select('amount, payment_method').eq('store_id', storeId).gte('created_at', todayISO)
-        : supabase.from('expenses').select('amount, payment_method').gte('created_at', todayISO),
+        ? supabase.from('expenses').select('amount, payment_method').eq('store_id', storeId).gte('created_at', todayISO).limit(1000)
+        : supabase.from('expenses').select('amount, payment_method').gte('created_at', todayISO).limit(1000),
       cogsQuery,
       // Top products - last 7 days, filtered by store if provided
       storeId

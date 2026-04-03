@@ -25,14 +25,11 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // If already logged in, redirect to POS (with timeout to prevent infinite waiting)
+  // If already logged in, redirect to POS (no setTimeout needed — use session + authLoading directly)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (session && !authLoading) {
-        router.replace('/pos');
-      }
-    }, 500);
-    return () => clearTimeout(timer);
+    if (session && !authLoading) {
+      router.replace('/pos');
+    }
   }, [session, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {

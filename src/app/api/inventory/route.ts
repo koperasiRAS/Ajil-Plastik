@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from('products')
       .select('id, name, stock, barcode, category_id, cost_price, price, categories(name)')
-      .order('stock', { ascending: true });
+      .order('stock', { ascending: true })
+      .limit(1000);
 
     // Filter by store if provided
     if (storeId) {

@@ -183,8 +183,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setStores([]);
         }
 
-        // Ensure loading is false after any auth state change
-        if (loading) setLoading(false);
+        // Ensure loading is false after any auth state change (guard against unmount)
+        if (mounted && loading) setLoading(false);
       }
     );
 
@@ -273,6 +273,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStore(selectedStore);
       if (typeof window !== 'undefined') {
         localStorage.setItem('selected_store_id', storeId);
+      }
+      // Persist store selection to backend (users table) so it's remembered across devices
+      if (user?.id) {
+        await supabase.from('users').update({ store_id: storeId }).eq('id', user.id);
       }
     }
   };

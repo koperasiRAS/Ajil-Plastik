@@ -22,7 +22,16 @@ export default function InventoryPage() {
       if (store?.id) {
         productsQuery = productsQuery.or(`store_id.eq.${store.id},store_id.is.null`);
       }
-      let logsQuery = supabase.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(50);
+      let logsQuery = supabase
+        .from('stock_logs')
+        .select('*, products(name, store_id)')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      // Filter logs by store: show logs for current store's products + global (null store_id) products
+      if (store?.id) {
+        logsQuery = logsQuery.or(`products.store_id.eq.${store.id},products.store_id.is.null`);
+      }
       const [productsRes, logsRes] = await Promise.all([productsQuery, logsQuery]);
       return {
         products: (productsRes.data as Product[]) || [],

@@ -47,7 +47,7 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/settings?table=${section.table}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/settings?table=${section.table}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
       setMessage({ type: 'success', text: `✓ Data ${section.label} berhasil dihapus` });
       refetch();
