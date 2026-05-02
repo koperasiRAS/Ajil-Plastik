@@ -34,7 +34,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { LoadingCenter } from '@/components/LoadingSpinner';
 
 export default function PosClient() {
-  const { user, store } = useAuth();
+  const { user, store, loading: authLoading } = useAuth();
 
   // Fetch categories
   const { data: categories = [] } = useQuery({
@@ -44,6 +44,7 @@ export default function PosClient() {
       return (data as Category[]) || [];
     },
     staleTime: 10 * 60 * 1000,
+    enabled: !authLoading,
   });
 
   // Fetch active products — align filter with products/page: exact store_id OR null (global products)
@@ -56,21 +57,22 @@ export default function PosClient() {
           .from('products')
           .select('*, categories(name)')
           .or(`store_id.eq.${store.id},store_id.is.null`)
-          .or('is_active.is.true,is_active.is.null')
+          .neq('is_active', false)
           .order('name')
           .limit(500);
       } else {
         query = supabase
           .from('products')
           .select('*, categories(name)')
-          .or('is_active.is.true,is_active.is.null')
+          .neq('is_active', false)
           .order('name')
           .limit(500);
       }
       const { data } = await query;
       return (data as Product[]) || [];
     },
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    enabled: !authLoading,
   });
 
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -146,6 +148,7 @@ export default function PosClient() {
   useBarcodeScanner({ onScan: handleScan, enabled: true });
 
   // Filter products using DEBOUNCED SEARCH
+  // Sliced to 100 to prevent browser thread freeze (ga responsive) on massive catalogs
   const filteredProducts = products.filter(p => {
     if (activeCategory !== 'all' && p.category_id !== activeCategory) return false;
     if (debouncedSearchQuery) {
@@ -153,7 +156,7 @@ export default function PosClient() {
       return p.name.toLowerCase().includes(q) || p.barcode.includes(debouncedSearchQuery);
     }
     return true;
-  });
+  }).slice(0, 100);
 
   // Cart operations
   const updateQuantity = (productId: string, newQty: number) => {

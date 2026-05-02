@@ -40,7 +40,7 @@ interface DashboardClientProps {
 export default function DashboardClient({ initialData }: DashboardClientProps) {
   const { store } = useAuth();
 
-  const { data, isLoading } = useQuery<DashboardData>({
+  const { data, isLoading, isPlaceholderData } = useQuery<DashboardData>({
     queryKey: ['dashboard', store?.id],
     queryFn: async () => {
       const params = store?.id ? `?store_id=${store.id}` : '';
@@ -56,11 +56,13 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
     refetchOnWindowFocus: false,
   });
 
-  // Show loading spinner only on very first load (no placeholder and still fetching)
-  if (isLoading && !data) {
+  // Show loading spinner only on very first load (or when using placeholder data)
+  // This prevents the user from seeing an empty dashboard with 0s while the real data fetches
+  if (isLoading || isPlaceholderData) {
     return (
-      <div className="p-6" style={{ background: 'var(--bg-primary)' }}>
+      <div className="p-6 h-[80vh] flex flex-col justify-center items-center" style={{ background: 'var(--bg-primary)' }}>
         <LoadingCenter />
+        <p className="mt-4 text-sm font-medium animate-pulse" style={{ color: 'var(--text-muted)' }}>Memuat data dashboard...</p>
       </div>
     );
   }

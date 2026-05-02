@@ -32,15 +32,33 @@ export async function GET(request: NextRequest) {
     const storeFilter = storeId ? { store_id: storeId } : {};
 
     // Build base queries - always filter by today's date
-    let txnQuery = supabase.from('transactions').select('total, payment_method').gte('created_at', todayISO).limit(1000);
-    let recentQuery = supabase.from('transactions').select('id, total, created_at, payment_method, users(name)').gte('created_at', todayISO).order('created_at', { ascending: false }).limit(5);
-    let cogsQuery = supabase.from('transaction_items').select('quantity, cost_price, transactions!inner(created_at, store_id)').gte('transactions.created_at', todayISO).limit(1000);
+    // Fetch transactions with their items to calculate Sales, COGS, and Payment Methods in one pass
+    let txnQuery = supabase
+      .from('transactions')
+      .select('total, payment_method, transaction_items(quantity, cost_price)')
+      .gte('created_at', todayISO)
+      .limit(1000);
+      
+    let recentQuery = supabase
+      .from('transactions')
+      .select('id, total, created_at, payment_method, users(name)')
+      .gte('created_at', todayISO)
+      .order('created_at', { ascending: false })
+      .limit(5);
+      
+    // Fetch recent transactions for top products (last 7 days)
+    // Querying transactions directly is much faster than reverse joining from transaction_items
+    let topProductsQuery = supabase
+      .from('transactions')
+      .select('transaction_items(quantity, products(name))')
+      .gte('created_at', sevenDaysAgo)
+      .limit(1000);
 
     // Apply store filter
     if (Object.keys(storeFilter).length > 0) {
       txnQuery = txnQuery.match(storeFilter);
       recentQuery = recentQuery.match(storeFilter);
-      cogsQuery = cogsQuery.eq('transactions.store_id', storeId);
+      topProductsQuery = topProductsQuery.match(storeFilter);
     }
 
     // ALL queries in parallel for maximum performance!
@@ -50,7 +68,6 @@ export async function GET(request: NextRequest) {
       lowStockRes,
       recentRes,
       expensesRes,
-      cogsRes,
       topProductsRes,
     ] = await Promise.all([
       txnQuery,
@@ -67,18 +84,13 @@ export async function GET(request: NextRequest) {
       storeId
         ? supabase.from('expenses').select('amount, payment_method').eq('store_id', storeId).gte('created_at', todayISO).limit(1000)
         : supabase.from('expenses').select('amount, payment_method').gte('created_at', todayISO).limit(1000),
-      cogsQuery,
-      // Top products - last 7 days, filtered by store if provided
-      storeId
-        ? supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at, store_id)').eq('transactions.store_id', storeId).gte('transactions.created_at', sevenDaysAgo).limit(500)
-        : supabase.from('transaction_items').select('quantity, products(name), transactions!inner(created_at)').gte('transactions.created_at', sevenDaysAgo).limit(500),
+      topProductsQuery,
     ]);
 
-    // Process expenses — split cash vs non-cash to accurately calculate cash balance
+    // Process expenses
     let todayExpenses = 0;
     let todayCashExpenses = 0;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (expensesRes.data || []).forEach((e: any) => {
         const amt = Number(e.amount);
         todayExpenses += amt;
@@ -86,21 +98,34 @@ export async function GET(request: NextRequest) {
       });
     } catch { /* */ }
 
-    // Process COGS
+    // Process Transactions, Sales, COGS, and Payments in one loop
+    const todayTxns = txnRes.data || [];
+    let todaySales = 0;
     let todayCOGS = 0;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      todayCOGS = (cogsRes.data || []).reduce((sum: number, item: any) => sum + (Number(item.cost_price || 0) * Number(item.quantity)), 0);
-    } catch { /* */ }
+    const salesByPayment = { cash: 0, qris: 0, transfer: 0 };
+    
+    todayTxns.forEach((t: any) => {
+      const total = Number(t.total);
+      todaySales += total;
+      
+      const method = t.payment_method as keyof typeof salesByPayment;
+      if (method in salesByPayment) salesByPayment[method] += total;
+      
+      // Calculate COGS from nested items
+      (t.transaction_items || []).forEach((item: any) => {
+        todayCOGS += (Number(item.cost_price || 0) * Number(item.quantity || 0));
+      });
+    });
 
-    // Process top products
+    // Process top products from the 7-day transactions query
     const topProducts: { name: string; totalSold: number }[] = [];
     try {
       const productMap = new Map<string, number>();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (topProductsRes.data || []).forEach((item: any) => {
-        const name = item.products?.name || 'Unknown';
-        productMap.set(name, (productMap.get(name) || 0) + Number(item.quantity));
+      (topProductsRes.data || []).forEach((txn: any) => {
+        (txn.transaction_items || []).forEach((item: any) => {
+           const name = item.products?.name || 'Unknown';
+           productMap.set(name, (productMap.get(name) || 0) + Number(item.quantity || 0));
+        });
       });
       Array.from(productMap.entries())
         .map(([name, totalSold]) => ({ name, totalSold }))
@@ -109,18 +134,9 @@ export async function GET(request: NextRequest) {
         .forEach(p => topProducts.push(p));
     } catch { /* */ }
 
-    const todayTxns = txnRes.data || [];
-    const todaySales = todayTxns.reduce((sum, t) => sum + Number(t.total), 0);
     const todayGrossProfit = todaySales - todayCOGS;
     const todayNetProfit = todayGrossProfit - todayExpenses;
     const grossMargin = todaySales > 0 ? (todayGrossProfit / todaySales) * 100 : 0;
-
-    const salesByPayment = { cash: 0, qris: 0, transfer: 0 };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    todayTxns.forEach((t: any) => {
-      const method = t.payment_method as keyof typeof salesByPayment;
-      if (method in salesByPayment) salesByPayment[method] += Number(t.total);
-    });
 
     const response = NextResponse.json({
       todaySales, todayTransactions: todayTxns.length,
