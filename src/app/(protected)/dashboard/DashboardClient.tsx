@@ -59,7 +59,7 @@ export default function DashboardClient() {
     );
   }
 
-  const d = data || initialData || emptyDashboard;
+  const d = data || emptyDashboard;
 
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto" style={{ background: 'var(--bg-primary)', minHeight: '100vh' }}>
