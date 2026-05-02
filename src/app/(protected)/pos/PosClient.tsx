@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -36,7 +36,16 @@ import { LoadingCenter } from '@/components/LoadingSpinner';
 export default function PosClient() {
   const { user, store, loading: authLoading } = useAuth();
 
-  // Fetch categories
+  // ── Search state (defined first — debounced value used in queries below) ──────
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery] = useDebounce(searchQuery, 300);
+
+  // ── Pagination state ─────────────────────────────────────────────────────────
+  const [page, setPage] = useState(1);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [totalProducts, setTotalProducts] = useState(0);
+
+  // Fetch categories (always fresh, rarely changes)
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -47,38 +56,50 @@ export default function PosClient() {
     enabled: !authLoading,
   });
 
-  // Fetch active products — align filter with products/page: exact store_id OR null (global products)
-  const { data: products = [], isLoading: isLoadingProducts } = useQuery({
-    queryKey: ['products', store?.id],
-    queryFn: async () => {
-      let query;
-      if (store?.id) {
-        query = supabase
-          .from('products')
-          .select('*, categories(name)')
-          .or(`store_id.eq.${store.id},store_id.is.null`)
-          .neq('is_active', false)
-          .order('name')
-          .limit(500);
-      } else {
-        query = supabase
-          .from('products')
-          .select('*, categories(name)')
-          .neq('is_active', false)
-          .order('name')
-          .limit(500);
-      }
-      const { data } = await query;
-      return (data as Product[]) || [];
-    },
+  // ── Paginated product fetch ────────────────────────────────────────────────────
+  // Uses server-side page + search so the browser never loads thousands of rows at once.
+  // On each new page, results are APPENDED (not replaced). Search resets to page 1.
+  const fetchProductsPage = useCallback(async (pageNum: number, search: string) => {
+    const params = new URLSearchParams({ page: String(pageNum), limit: '50' });
+    if (store?.id) params.set('store_id', store.id);
+    if (search) params.set('search', search);
+
+    const res = await fetch(`/api/products?${params.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch products');
+    return res.json() as Promise<{ data: Product[]; pagination: { total: number } }>;
+  }, [store?.id]);
+
+  // React Query manages page fetching — no stale issues since each page has unique key
+  const { data, isLoading: isLoadingPage } = useQuery({
+    queryKey: ['pos-products', store?.id, page, debouncedSearchQuery],
+    queryFn: () => fetchProductsPage(page, debouncedSearchQuery),
     staleTime: 5 * 60 * 1000,
-    enabled: !authLoading,
+    enabled: !authLoading && (page === 1 || allProducts.length < totalProducts),
   });
 
+  // Sync fetched page into cumulative list
+  useEffect(() => {
+    if (!data) return;
+    const incoming = data.data ?? [];
+    setAllProducts(prev => {
+      if (page === 1 || debouncedSearchQuery) return incoming;
+      const existingIds = new Set(prev.map(p => p.id));
+      return [...prev, ...incoming.filter(p => !existingIds.has(p.id))];
+    });
+    setTotalProducts(data.pagination?.total ?? 0);
+  }, [data, page, debouncedSearchQuery]);
+
+  // Reset to page 1 whenever store or search changes
+  useEffect(() => {
+    setPage(1);
+    setAllProducts([]);
+  }, [store?.id, debouncedSearchQuery]);
+
+  const products = allProducts;
+  const hasMoreProducts = allProducts.length < totalProducts && totalProducts > 0;
+  const isLoadingProducts = page === 1 && isLoadingPage;
+
   const [cart, setCart] = useState<CartItem[]>([]);
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery] = useDebounce(searchQuery, 300); // Debounce search 300ms
   
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [checkingOut, setCheckingOut] = useState(false);
@@ -147,21 +168,30 @@ export default function PosClient() {
   // Enable barcode scanner
   useBarcodeScanner({ onScan: handleScan, enabled: true });
 
-  // Filter products using DEBOUNCED SEARCH
-  // Sliced to 100 to prevent browser thread freeze (ga responsive) on massive catalogs
-  const filteredProducts = products.filter(p => {
-    if (activeCategory !== 'all' && p.category_id !== activeCategory) return false;
-    if (debouncedSearchQuery) {
-      const q = debouncedSearchQuery.toLowerCase();
-      return p.name.toLowerCase().includes(q) || p.barcode.includes(debouncedSearchQuery);
-    }
-    return true;
-  }).slice(0, 100);
+  // Filter products using DEBOUNCED SEARCH — memoized to avoid recompute on every render
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      if (activeCategory !== 'all' && p.category_id !== activeCategory) return false;
+      if (debouncedSearchQuery) {
+        const q = debouncedSearchQuery.toLowerCase();
+        return p.name.toLowerCase().includes(q) || p.barcode.includes(q);
+      }
+      return true;
+    });
+  }, [products, activeCategory, debouncedSearchQuery]);
 
-  // Cart operations
-  const updateQuantity = (productId: string, newQty: number) => {
+  // Category counts — computed once per products change, not per render
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of products) {
+      if (p.category_id) counts.set(p.category_id, (counts.get(p.category_id) || 0) + 1);
+    }
+    return counts;
+  }, [products]);
+
+  // Cart operations — both useCallback so child buttons don't re-render the entire cart panel on every keystroke
+  const updateQuantity = useCallback((productId: string, newQty: number) => {
     if (newQty <= 0) { setCart(prev => prev.filter(item => item.product.id !== productId)); return; }
-    // Validate stock before updating
     const cartItem = cart.find(item => item.product.id === productId);
     if (cartItem && newQty > cartItem.product.stock) {
       setMessage({ type: 'error', text: `Stok ${cartItem.product.name} tidak cukup!` });
@@ -170,65 +200,18 @@ export default function PosClient() {
     setCart(prev => prev.map(item =>
       item.product.id === productId ? { ...item, quantity: newQty } : item
     ));
-  };
-  const removeFromCart = (productId: string) => setCart(prev => prev.filter(item => item.product.id !== productId));
+  }, [cart]);
 
-  const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const removeFromCart = useCallback((productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  }, []);
+
+  const subtotal = useMemo(() =>
+    cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+  [cart]);
+
   const discountAmount = Number.parseFloat(discount) || 0;
   const total = Math.max(0, subtotal - discountAmount);
-
-  // ── Helper: Rollback stock to a known snapshot (called on partial failure)
-  const rollbackStock = async (items: CartItem[], snapshot: Map<string, number>) => {
-    for (const item of items) {
-      const restoreTo = snapshot.get(item.product.id);
-      if (restoreTo !== undefined) {
-        await supabase
-          .from('products')
-          .update({ stock: restoreTo })
-          .eq('id', item.product.id);
-      }
-    }
-  };
-
-  // ── Helper: Insert stock log entry (non-critical — failures are logged, not thrown)
-  const insertStockLog = async (productId: string, qty: number, note: string) => {
-    const { error } = await supabase.from('stock_logs').insert({
-      product_id: productId,
-      type: 'sale',
-      quantity: qty,
-      note,
-    });
-    if (error) console.error(`Stock log failed for product ${productId}:`, error.message);
-  };
-
-  // ── Helper: Update stock sequentially with full rollback on any failure
-  const updateStockSequentially = async (
-    items: CartItem[],
-    stockMap: Map<string, number>,
-    doRollback: (items: CartItem[], snapshot: Map<string, number>) => Promise<void>,
-  ) => {
-    for (const item of items) {
-      const previousStock = stockMap.get(item.product.id);
-      if (previousStock === undefined) {
-        await doRollback(items, stockMap);
-        throw new Error(`Produk "${item.product.name}" tidak ditemukan saat update stok`);
-      }
-
-      const newStock = previousStock - item.quantity;
-      const { error } = await supabase
-        .from('products')
-        .update({ stock: newStock })
-        .eq('id', item.product.id);
-
-      if (error) {
-        await doRollback(items, stockMap);
-        throw new Error(`Gagal update stok "${item.product.name}" — transaksi dibatalkan`);
-      }
-
-      // Keep stockMap in sync so rollback restores the correct value
-      stockMap.set(item.product.id, newStock);
-    }
-  };
 
   // ── Helper: Get payment method icon label
   const getPaymentLabel = (method: string) => {
@@ -315,16 +298,28 @@ export default function PosClient() {
       const { error: itemsError } = await supabase.from('transaction_items').insert(items);
       if (itemsError) throw new Error('Gagal menyimpan item');
 
-      // ── Step 4: Update stock SEQUENTIALLY (not parallel) — rollback on any failure
-      // Uses stockMap (fresh from server) for new stock value — NOT cart item.stock
-      await updateStockSequentially(cart, stockMap, rollbackStock);
+      // ── Step 4: Bulk update stock via single Postgres RPC (replaces N sequential awaits)
+      const stockItems = cart.map(item => ({
+        product_id: item.product.id,
+        delta: -item.quantity,
+        note: `Penjualan - ${txn.id.slice(0, 8)}`,
+      }));
 
-      // ── Step 5: Insert stock logs (only after all stock updates succeed)
-      for (const item of cart) {
-        await insertStockLog(item.product.id, -item.quantity, `Penjualan - ${txn.id.slice(0, 8)}`);
+      const { data: stockResult, error: stockError } = await supabase.rpc('fn_bulk_update_stock', {
+        p_items: stockItems,
+      });
+
+      if (stockError) throw new Error('Gagal update stok');
+
+      // Check for per-item failures returned from RPC
+      const failures = (stockResult ?? []).filter((r: any) => r.success === false);
+      if (failures.length > 0) {
+        // Something went wrong inside the function — likely insufficient stock race condition
+        const first = failures[0] as any;
+        throw new Error(`Update stok gagal: ${first.error_message} (${first.product_name ?? first.product_id})`);
       }
 
-      // ── Step 6: Build receipt using actual store data (not hardcoded)
+      // ── Step 5: Build receipt using actual store data (not hardcoded)
       const cashReceivedNum = Number.parseFloat(cashReceived) || 0;
       const receipt = buildReceipt(txn.id, cashReceivedNum);
 
@@ -421,7 +416,7 @@ export default function PosClient() {
               Semua ({products.length})
             </button>
             {categories.map(cat => {
-              const count = products.filter(p => p.category_id === cat.id).length;
+              const count = categoryCounts.get(cat.id) ?? 0;
               if (count === 0) return null;
               return (
                 <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
@@ -446,38 +441,56 @@ export default function PosClient() {
               <LoadingCenter />
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {filteredProducts.map(product => (
-                <button
-                  key={product.id}
-                  onClick={() => addToCart(product)}
-                  disabled={product.stock <= 0}
-                  className="glass-card p-0 overflow-hidden text-left transition-all duration-200 group disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ cursor: product.stock > 0 ? 'pointer' : 'not-allowed' }}
-                >
-                  {/* Product Image - Using emoji instead of images for better performance */}
-                  <div className="product-image-container relative flex items-center justify-center" style={{ background: 'var(--bg-input)' }}>
-                    <div className="text-4xl">📦</div>
-                    {product.stock <= 5 && product.stock > 0 && (
-                      <span className="absolute top-1 right-1 badge badge-yellow text-[10px] px-1.5">Sisa {product.stock}</span>
-                    )}
-                    {product.stock <= 0 && (
-                      <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                        <span className="text-white text-xs font-bold">HABIS</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Product Info */}
-                  <div className="p-2.5">
-                    <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{product.name}</p>
-                    {product.categories?.name && (
-                      <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{product.categories.name}</p>
-                    )}
-                    <p className="text-sm font-bold mt-1" style={{ color: 'var(--accent-blue)' }}>{formatRupiah(product.price)}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                {filteredProducts.map(product => (
+                  <button
+                    key={product.id}
+                    onClick={() => addToCart(product)}
+                    disabled={product.stock <= 0}
+                    className="glass-card p-0 overflow-hidden text-left transition-all duration-200 group disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ cursor: product.stock > 0 ? 'pointer' : 'not-allowed' }}
+                  >
+                    {/* Product Image - Using emoji instead of images for better performance */}
+                    <div className="product-image-container relative flex items-center justify-center" style={{ background: 'var(--bg-input)' }}>
+                      <div className="text-4xl">📦</div>
+                      {product.stock <= 5 && product.stock > 0 && (
+                        <span className="absolute top-1 right-1 badge badge-yellow text-[10px] px-1.5">Sisa {product.stock}</span>
+                      )}
+                      {product.stock <= 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                          <span className="text-white text-xs font-bold">HABIS</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Product Info */}
+                    <div className="p-2.5">
+                      <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{product.name}</p>
+                      {product.categories?.name && (
+                        <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{product.categories.name}</p>
+                      )}
+                      <p className="text-sm font-bold mt-1" style={{ color: 'var(--accent-blue)' }}>{formatRupiah(product.price)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {/* Load More — appears when there are more products to fetch */}
+              {hasMoreProducts && (
+                <div className="flex justify-center mt-4">
+                  <button
+                    onClick={() => setPage(p => p + 1)}
+                    className="px-6 py-2 rounded-lg text-sm font-medium transition-all"
+                    style={{
+                      background: 'var(--bg-input)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-default)',
+                    }}
+                  >
+                    {`Lihat Lebih Banyak (${totalProducts - allProducts.length} lagi)`}
+                  </button>
+                </div>
+              )}
+            </>
           )}
           {filteredProducts.length === 0 && !isLoadingProducts && (
             <div className="flex flex-col items-center py-12 animate-fade-in">

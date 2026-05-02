@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(Number.parseInt(searchParams.get('limit') || '50'), 100);
   const offset = (page - 1) * limit;
   const storeId = searchParams.get('store_id'); // Optional: filter by store
+  const search = searchParams.get('search') || ''; // Text search for POS grid
 
   try {
     let query = supabase
@@ -29,6 +30,11 @@ export async function GET(req: NextRequest) {
 
     if (storeId) {
       query = query.eq('store_id', storeId);
+    }
+
+    // POS text search: filter by name or barcode
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,barcode.ilike.%${search}%`);
     }
 
     const { data, error, count } = await query;

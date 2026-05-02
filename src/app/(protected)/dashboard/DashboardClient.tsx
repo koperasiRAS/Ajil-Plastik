@@ -33,14 +33,10 @@ const emptyDashboard: DashboardData = {
   salesByPayment: { cash: 0, qris: 0, transfer: 0 },
 };
 
-interface DashboardClientProps {
-  initialData?: DashboardData;
-}
-
-export default function DashboardClient({ initialData }: DashboardClientProps) {
+export default function DashboardClient() {
   const { store } = useAuth();
 
-  const { data, isLoading, isPlaceholderData } = useQuery<DashboardData>({
+  const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard', store?.id],
     queryFn: async () => {
       const params = store?.id ? `?store_id=${store.id}` : '';
@@ -48,17 +44,13 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       if (!res.ok) throw new Error('API error');
       return res.json();
     },
-    // placeholderData (not initialData) so switching branches always triggers a fresh fetch.
-    // initialData would mark SSR data as "fresh" for 60s — causing wrong-branch data to show.
-    placeholderData: initialData || emptyDashboard,
-    staleTime: 30 * 1000, // Shorter for more responsive financial data
-    refetchOnMount: true,
+    staleTime: 30 * 1000,
     refetchOnWindowFocus: false,
   });
 
   // Show loading spinner only on very first load (or when using placeholder data)
   // This prevents the user from seeing an empty dashboard with 0s while the real data fetches
-  if (isLoading || isPlaceholderData) {
+  if (isLoading) {
     return (
       <div className="p-6 h-[80vh] flex flex-col justify-center items-center" style={{ background: 'var(--bg-primary)' }}>
         <LoadingCenter />
