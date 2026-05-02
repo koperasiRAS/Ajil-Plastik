@@ -44,13 +44,21 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid table' }, { status: 400 });
     }
 
-    // Handle foreign key dependencies
+    // Handle foreign key dependencies — always delete parent (transactions) BEFORE child (transaction_items)
+    // This lets the DB's ON DELETE CASCADE handle children automatically (more efficient).
+    // Reversed: delete transactions first, then transaction_items as safety cleanup.
     if (table === 'transactions') {
+      await supabase.from(table).delete().not('id', 'is', null);
       await supabase.from('transaction_items').delete().not('id', 'is', null);
+      return NextResponse.json({ success: true });
     }
     if (table === 'products') {
+      await supabase.from(table).delete().not('id', 'is', null);
+      // ON DELETE CASCADE handles stock_logs, but delete transaction_items first
+      // so there are no orphaned product_id references
       await supabase.from('transaction_items').delete().not('id', 'is', null);
       await supabase.from('stock_logs').delete().not('id', 'is', null);
+      return NextResponse.json({ success: true });
     }
 
     const { error } = await supabase.from(table).delete().not('id', 'is', null);

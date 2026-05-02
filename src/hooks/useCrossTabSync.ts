@@ -48,10 +48,7 @@ export function broadcastCacheInvalidation(queryKey: string[]) {
   };
 
   // Set the item to trigger storage event in other tabs
-  // Use a unique value to ensure the event fires
-  const uniqueValue = `${Date.now()}-${Math.random()}`;
   localStorage.setItem('pos-cache-event', JSON.stringify(event));
-  localStorage.setItem('pos-cache-trigger', uniqueValue);
 }
 
 // Broadcast full cache reset to other tabs
@@ -63,5 +60,4 @@ export function broadcastCacheReset() {
   };
 
   localStorage.setItem('pos-cache-event', JSON.stringify(event));
-  localStorage.setItem('pos-cache-trigger', `${Date.now()}-${Math.random()}`);
 }

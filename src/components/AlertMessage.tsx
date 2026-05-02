@@ -3,7 +3,7 @@
  * Replaces duplicated message state and display logic across 8+ files
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 export type AlertType = 'success' | 'error';
 
@@ -17,15 +17,25 @@ export interface AlertMessageProps {
 export function AlertMessage({ type, message, onClose, autoDismiss = 0 }: AlertMessageProps) {
   const [visible, setVisible] = useState(true);
 
+  // Stable onClose — useCallback prevents effect from re-running on every render
+  const handleClose = useCallback(() => {
+    onClose?.();
+  }, [onClose]);
+
+  useEffect(() => {
+    // Reset visibility when message changes (new alert replaces old)
+    setVisible(true);
+  }, [message]);
+
   useEffect(() => {
     if (autoDismiss > 0) {
       const timer = setTimeout(() => {
         setVisible(false);
-        onClose?.();
+        handleClose();
       }, autoDismiss);
       return () => clearTimeout(timer);
     }
-  }, [autoDismiss, onClose]);
+  }, [autoDismiss, handleClose]);
 
   if (!visible) return null;
 
@@ -36,7 +46,7 @@ export function AlertMessage({ type, message, onClose, autoDismiss = 0 }: AlertM
         <button
           onClick={() => {
             setVisible(false);
-            onClose();
+            handleClose();
           }}
           className="ml-2 opacity-70 hover:opacity-100 transition-opacity"
         >

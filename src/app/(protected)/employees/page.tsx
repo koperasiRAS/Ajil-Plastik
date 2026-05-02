@@ -79,7 +79,7 @@ export default function EmployeesPage() {
           throw new Error(data.error || 'Gagal menambah karyawan');
         }
 
-        setMessage({ type: 'success', text: '✓ Karyawan berhasil ditambahkan! Password: ' + password });
+        setMessage({ type: 'success', text: `✓ Karyawan berhasil ditambahkan! Email: ${email}` });
         resetForm();
         refetch();
       } else if (editingUser) {

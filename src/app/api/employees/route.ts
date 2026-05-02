@@ -113,3 +113,50 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
+
+// Delete employee — removes from users table AND Supabase Auth
+export async function DELETE(req: NextRequest) {
+  const supabase = await createServerSupabase();
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing employee id' }, { status: 400 });
+
+    // Prevent self-deletion (cannot delete own account)
+    // Get current user's id from Authorization header
+    const authHeader = req.headers.get('authorization');
+    let currentUserId: string | null = null;
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: sessionData } = await supabase.auth.getUser(token);
+      currentUserId = sessionData?.user?.id ?? null;
+    }
+
+    if (currentUserId === id) {
+      return NextResponse.json({ error: 'Tidak bisa menghapus akun sendiri' }, { status: 400 });
+    }
+
+    // Delete from Supabase Auth first (service role required)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const authClient = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false }
+    });
+
+    const { error: authDeleteError } = await authClient.auth.admin.deleteUser(id);
+    if (authDeleteError) {
+      console.error('Auth delete error:', authDeleteError);
+      return NextResponse.json({ error: 'Gagal menghapus akun auth. ' + authDeleteError.message }, { status: 400 });
+    }
+
+    // Delete from users table
+    const { error: userDeleteError } = await supabase.from('users').delete().eq('id', id);
+    if (userDeleteError) throw userDeleteError;
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('Employee delete error:', err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}

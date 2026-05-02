@@ -4,6 +4,19 @@
  */
 
 /**
+ * Properly escape a CSV cell value (RFC 4180 compliant)
+ * Handles commas, double quotes, and newlines by wrapping in quotes
+ * and doubling any internal double quotes.
+ */
+function escapeCSVValue(value: string | number): string {
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replaceAll('"', '""')}"`;
+  }
+  return str;
+}
+
+/**
  * Export data to CSV file
  * @param headers - Array of column headers
  * @param rows - Array of row data (each row is array of cell values)
@@ -21,10 +34,9 @@ export function exportToCSV(
   rows: (string | number)[][],
   filename: string
 ): void {
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.join(','))
-  ].join('\n');
+  const escapedHeaders = headers.map(escapeCSVValue);
+  const escapedRows = rows.map(row => row.map(escapeCSVValue));
+  const csvContent = [escapedHeaders.join(','), ...escapedRows.map(r => r.join(','))].join('\n');
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

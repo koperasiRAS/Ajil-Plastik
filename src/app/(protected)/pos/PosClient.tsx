@@ -10,6 +10,23 @@ import { queryClient } from '@/lib/queryClient';
 import { useDebounce } from 'use-debounce';
 import { broadcastCacheInvalidation } from '@/hooks/useCrossTabSync';
 
+// Proper typing for receipt data
+export interface ReceiptData {
+  storeName: string;
+  storeAddress: string;
+  storePhone: string;
+  date: Date;
+  cashier: string;
+  items: { name: string; qty: number; price: number; subtotal: number }[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  paymentMethod: 'cash' | 'qris' | 'transfer';
+  transactionId: string;
+  cashReceived: number;
+  change: number;
+}
+
 // Lazy Load ReceiptPrint Component
 const ReceiptPrint = dynamic(() => import('@/components/ReceiptPrint'), { ssr: false });
 
@@ -67,8 +84,7 @@ export default function PosClient() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'transfer'>('cash');
   const [discount, setDiscount] = useState('');
   const [cashReceived, setCashReceived] = useState('');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [receiptData, setReceiptData] = useState<any>(null);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
   const addToCart = useCallback((product: Product) => {
     if (product.stock <= 0) {
@@ -95,17 +111,35 @@ export default function PosClient() {
 
   // Barcode scan — filter by store to avoid cross-store barcode collisions
   const handleScan = useCallback(async (barcode: string) => {
-    let query = supabase.from('products').select('*, categories(name)').eq('barcode', barcode);
+    // Only apply store filter if a store is actually selected
     if (store?.id) {
-      query = query.or(`store_id.eq.${store.id},store_id.is.null`);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*, categories(name)')
+        .or(`store_id.eq.${store.id},store_id.is.null`)
+        .eq('barcode', barcode)
+        .single();
+      if (error || !data) {
+        setMessage({ type: 'error', text: `❌ Produk tidak ditemukan: ${barcode}` });
+        setTimeout(() => setMessage(null), 3000);
+        return;
+      }
+      addToCart(data as Product);
+    } else {
+      // No store selected — fall back to global product search (null store_id only)
+      const { data, error } = await supabase
+        .from('products')
+        .select('*, categories(name)')
+        .is('store_id', null)
+        .eq('barcode', barcode)
+        .single();
+      if (error || !data) {
+        setMessage({ type: 'error', text: `❌ Produk tidak ditemukan: ${barcode}` });
+        setTimeout(() => setMessage(null), 3000);
+        return;
+      }
+      addToCart(data as Product);
     }
-    const { data, error } = await query.single();
-    if (error || !data) {
-      setMessage({ type: 'error', text: `❌ Produk tidak ditemukan: ${barcode}` });
-      setTimeout(() => setMessage(null), 3000);
-      return;
-    }
-    addToCart(data as Product);
   }, [addToCart, store?.id]);
 
   // Enable barcode scanner
@@ -140,12 +174,97 @@ export default function PosClient() {
   const discountAmount = Number.parseFloat(discount) || 0;
   const total = Math.max(0, subtotal - discountAmount);
 
-  // Checkout mutation with optimistic stock update + proper rollback on error
+  // ── Helper: Rollback stock to a known snapshot (called on partial failure)
+  const rollbackStock = async (items: CartItem[], snapshot: Map<string, number>) => {
+    for (const item of items) {
+      const restoreTo = snapshot.get(item.product.id);
+      if (restoreTo !== undefined) {
+        await supabase
+          .from('products')
+          .update({ stock: restoreTo })
+          .eq('id', item.product.id);
+      }
+    }
+  };
+
+  // ── Helper: Insert stock log entry (non-critical — failures are logged, not thrown)
+  const insertStockLog = async (productId: string, qty: number, note: string) => {
+    const { error } = await supabase.from('stock_logs').insert({
+      product_id: productId,
+      type: 'sale',
+      quantity: qty,
+      note,
+    });
+    if (error) console.error(`Stock log failed for product ${productId}:`, error.message);
+  };
+
+  // ── Helper: Update stock sequentially with full rollback on any failure
+  const updateStockSequentially = async (
+    items: CartItem[],
+    stockMap: Map<string, number>,
+    doRollback: (items: CartItem[], snapshot: Map<string, number>) => Promise<void>,
+  ) => {
+    for (const item of items) {
+      const previousStock = stockMap.get(item.product.id);
+      if (previousStock === undefined) {
+        await doRollback(items, stockMap);
+        throw new Error(`Produk "${item.product.name}" tidak ditemukan saat update stok`);
+      }
+
+      const newStock = previousStock - item.quantity;
+      const { error } = await supabase
+        .from('products')
+        .update({ stock: newStock })
+        .eq('id', item.product.id);
+
+      if (error) {
+        await doRollback(items, stockMap);
+        throw new Error(`Gagal update stok "${item.product.name}" — transaksi dibatalkan`);
+      }
+
+      // Keep stockMap in sync so rollback restores the correct value
+      stockMap.set(item.product.id, newStock);
+    }
+  };
+
+  // ── Helper: Get payment method icon label
+  const getPaymentLabel = (method: string) => {
+    if (method === 'cash') return '💵 Cash';
+    if (method === 'qris') return '📱 QRIS';
+    return '🏦 Transfer';
+  };
+
+  // ── Helper: Build receipt data from cart and transaction info (Step 6)
+  const buildReceipt = (txnId: string, cashReceivedNum: number): ReceiptData => ({
+    storeName: store?.name ?? 'Toko Plastik',
+    storeAddress: store?.address ?? 'Jl. Boulevard Gran City,\nJatimulya, Kec. Ci,\nKota Depok, Jawa',
+    storePhone: store?.phone ? `Telp: ${store.phone}` : 'Telp: 628551218',
+    date: new Date(),
+    cashier: user!.name,
+    items: cart.map(item => ({
+      name: item.product.name,
+      qty: item.quantity,
+      price: item.product.price,
+      subtotal: item.product.price * item.quantity,
+    })),
+    subtotal,
+    discount: discountAmount,
+    total,
+    paymentMethod,
+    transactionId: txnId,
+    cashReceived: paymentMethod === 'cash' ? cashReceivedNum : 0,
+    change: paymentMethod === 'cash' ? Math.max(0, cashReceivedNum - total) : 0,
+  });
+
+  // Checkout mutation — all operations are sequential to guarantee consistency
+  // Fixes: stock not rollback on partial failure (was Promise.allSettled),
+  //        stale stock calculation (was using cart item.stock as fallback),
+  //        hardcoded store info in receipt (now uses store?.name/address/phone)
   const checkoutMutation = useMutation({
     mutationFn: async () => {
       if (cart.length === 0 || !user) throw new Error('Keranjang kosong');
 
-      // Validate current stock from server before checkout
+      // ── Step 1: Validate current stock from server
       const productIds = cart.map(item => item.product.id);
       const { data: stockData, error: stockError } = await supabase
         .from('products')
@@ -154,8 +273,11 @@ export default function PosClient() {
 
       if (stockError) throw new Error('Gagal validasi stok');
 
+      const stockMap = new Map<string, number>(
+        (stockData ?? []).map(p => [p.id, p.stock])
+      );
+
       // Check if any product has insufficient stock
-      const stockMap = new Map(stockData?.map(p => [p.id, p.stock]) || []);
       for (const item of cart) {
         const currentStock = stockMap.get(item.product.id) ?? 0;
         if (currentStock < item.quantity) {
@@ -163,57 +285,45 @@ export default function PosClient() {
         }
       }
 
-      // Create transaction
+      // ── Step 2: Create transaction
       const { data: txn, error: txnError } = await supabase
         .from('transactions')
-        .insert({ user_id: user.id, store_id: store?.id || null, total, payment_method: paymentMethod, discount: discountAmount })
-        .select('id').single();
+        .insert({
+          user_id: user.id,
+          store_id: store?.id ?? null,
+          total,
+          payment_method: paymentMethod,
+          discount: discountAmount,
+        })
+        .select('id')
+        .single();
 
       if (txnError || !txn) throw new Error('Gagal membuat transaksi');
 
+      // ── Step 3: Insert transaction items
       const items = cart.map(item => ({
-        transaction_id: txn.id, product_id: item.product.id,
-        quantity: item.quantity, price: item.product.price,
+        transaction_id: txn.id,
+        product_id: item.product.id,
+        quantity: item.quantity,
+        price: item.product.price,
         cost_price: item.product.cost_price || 0,
       }));
+
       const { error: itemsError } = await supabase.from('transaction_items').insert(items);
       if (itemsError) throw new Error('Gagal menyimpan item');
 
-      // Build receipt data
+      // ── Step 4: Update stock SEQUENTIALLY (not parallel) — rollback on any failure
+      // Uses stockMap (fresh from server) for new stock value — NOT cart item.stock
+      await updateStockSequentially(cart, stockMap, rollbackStock);
+
+      // ── Step 5: Insert stock logs (only after all stock updates succeed)
+      for (const item of cart) {
+        await insertStockLog(item.product.id, -item.quantity, `Penjualan - ${txn.id.slice(0, 8)}`);
+      }
+
+      // ── Step 6: Build receipt using actual store data (not hardcoded)
       const cashReceivedNum = Number.parseFloat(cashReceived) || 0;
-      const receipt = {
-        storeName: 'Toko Plastik',
-        storeAddress: 'Jl. Boulevard Gran City,\nJatimulya, Kec. Ci\nKota Depok, Jawa',
-        storePhone: 'Telp: 628551218',
-        date: new Date(),
-        cashier: user.name,
-        items: cart.map(item => ({
-          name: item.product.name, qty: item.quantity, price: item.product.price,
-          subtotal: item.product.price * item.quantity,
-        })),
-        subtotal, discount: discountAmount, total,
-        paymentMethod, transactionId: txn.id,
-        cashReceived: paymentMethod === 'cash' ? cashReceivedNum : 0,
-        change: paymentMethod === 'cash' ? Math.max(0, cashReceivedNum - total) : 0,
-      };
-
-      // Update stock in DB
-      const stockUpdateResults = await Promise.allSettled(cart.map(item =>
-        Promise.all([
-          supabase.from('products').update({ stock: (stockMap.get(item.product.id) ?? item.product.stock) - item.quantity }).eq('id', item.product.id),
-          supabase.from('stock_logs').insert({
-            product_id: item.product.id, type: 'sale', quantity: -item.quantity,
-            note: `Penjualan - ${txn.id.slice(0, 8)}`,
-          }),
-        ])
-      ));
-
-      // Log any failures
-      stockUpdateResults.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          console.error(`Failed to update stock for ${cart[index].product.name}:`, result.reason);
-        }
-      });
+      const receipt = buildReceipt(txn.id, cashReceivedNum);
 
       return { receipt, txnId: txn.id };
     },
@@ -229,8 +339,7 @@ export default function PosClient() {
         if (!old) return old;
         return old.map(p => {
           const cartItem = cart.find(c => c.product.id === p.id);
-          if (cartItem) return { ...p, stock: p.stock - cartItem.quantity };
-          return p;
+          return cartItem ? { ...p, stock: p.stock - cartItem.quantity } : p;
         });
       });
 
@@ -441,7 +550,7 @@ export default function PosClient() {
                     color: paymentMethod === method ? 'white' : 'var(--text-secondary)',
                     border: '1px solid ' + (paymentMethod === method ? 'var(--accent-blue)' : 'var(--border-default)'),
                   }}>
-                  {method === 'cash' ? '💵 Cash' : method === 'qris' ? '📱 QRIS' : '🏦 Transfer'}
+                  {getPaymentLabel(method)}
                 </button>
               ))}
             </div>
@@ -496,17 +605,20 @@ export default function PosClient() {
                 <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)}
                   placeholder="Masukkan nominal..." min="0" className="input-field text-lg font-bold" />
               </div>
-              {(Number.parseFloat(cashReceived) || 0) >= total && (Number.parseFloat(cashReceived) || 0) > 0 && (
+              {(Number.parseFloat(cashReceived) || 0) >= total && (
                 <div className="p-3 rounded-lg text-center animate-fade-in-scale" style={{ background: 'var(--accent-green)', color: 'white' }}>
                   <p className="text-xs opacity-80">Kembalian</p>
                   <p className="text-2xl font-bold">{formatRupiah((Number.parseFloat(cashReceived) || 0) - total)}</p>
                 </div>
               )}
-              {(Number.parseFloat(cashReceived) || 0) > 0 && (Number.parseFloat(cashReceived) || 0) < total && (
-                <div className="p-2 rounded-lg text-center text-xs" style={{ background: 'var(--accent-red)', color: 'white', opacity: 0.8 }}>
-                  ⚠️ Uang kurang {formatRupiah(total - (Number.parseFloat(cashReceived) || 0))}
-                </div>
-              )}
+              {(() => {
+                const cashNum = Number.parseFloat(cashReceived) || 0;
+                return cashNum > 0 && cashNum < total ? (
+                  <div className="p-2 rounded-lg text-center text-xs" style={{ background: 'var(--accent-red)', color: 'white', opacity: 0.8 }}>
+                    ⚠️ Uang kurang {formatRupiah(total - cashNum)}
+                  </div>
+                ) : null;
+              })()}
             </div>
           )}
 
@@ -517,7 +629,6 @@ export default function PosClient() {
               <p className="text-2xl font-bold">{formatRupiah(total)}</p>
             </div>
           )}
-
           <button onClick={handleCheckout} disabled={cart.length === 0 || checkingOut}
             className="btn-success w-full py-3 text-base font-bold disabled:opacity-40" style={{ borderRadius: '10px' }}>
             {checkingOut ? (
