@@ -305,11 +305,11 @@ export default function PosClient() {
         note: `Penjualan - ${txn.id.slice(0, 8)}`,
       }));
 
-      const { data: stockResult, error: stockError } = await supabase.rpc('fn_bulk_update_stock', {
+      const { data: stockResult, error: rpcError } = await supabase.rpc('fn_bulk_update_stock', {
         p_items: stockItems,
       });
 
-      if (stockError) throw new Error('Gagal update stok');
+      if (rpcError) throw new Error('Gagal update stok');
 
       // Check for per-item failures returned from RPC
       const failures = (stockResult ?? []).filter((r: any) => r.success === false);
